@@ -1,0 +1,24 @@
+[project]
+name = "aws_hawk"
+version = "0.1.0"
+description = "aws-hawk using crewAI"
+authors = [{ name = "Your Name", email = "you@example.com" }]
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "boto3>=1.38.2",
+    "crewai[tools]>=0.114.0,<1.0.0",
+]
+
+[project.scripts]
+aws_hawk = "aws_hawk.main:run"
+run_crew = "aws_hawk.main:run"
+train = "aws_hawk.main:train"
+replay = "aws_hawk.main:replay"
+test = "aws_hawk.main:test"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.crewai]
+type = "crew"
