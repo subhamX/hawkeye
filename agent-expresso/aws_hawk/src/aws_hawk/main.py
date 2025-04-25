@@ -5,6 +5,8 @@ import warnings
 from datetime import datetime
 import os
 
+from aws_hawk.crew import AwsHawk
+
 from aws_hawk.s3_insights_flow import S3InsightsFlow
 
 
@@ -29,6 +31,9 @@ def run():
     }
     
     try:
+        # crew = AwsHawk().crew(service='s3', file_path='xxx')
+        # crew.reset_memories('all')
+        
         S3InsightsFlow().kickoff(inputs=inputs)
     except Exception as e:
         raise Exception(f"An error occurred while running the crew: {e}")

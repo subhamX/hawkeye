@@ -3,52 +3,55 @@ analyze_s3_bucket_task:
     Analyze the S3 bucket {bucket_name} given the list of object/prefixes in the bucket.
     If bucket name or prefixes are not provided, throw an error. Don't try to fetch the bucket name or prefixes yourself.
 
-    Generate detailed, actionable, and **data-driven recommendations** to optimize cost and performance. 
+    Generate detailed, actionable, and data-driven recommendations to optimize cost and performance. 
     Do not include vague or generic suggestions. Be specific and quantify potential savings whenever possible.
-
-    Make the following types of recommendations:
 
     Statistics:
     - Total number of objects in the bucket: total_objects
     - Total size of the bucket: total_size
     - Total estimated cost of the bucket: total_cost
 
-    1. **Storage Class Optimization**:
+    Some of the example of recommendations are:
+    Remember, not all may be applicable, if you do not find some or more recommendations applicable for the bucket, tell them, everything is already good, and don't show unnecessary text.
+    THINK more.. Don't be shy, or lazy. If you need more data use boto3 to fetch more info. Keep the scope to this bucket only.
+
+
+    1. Storage Class Optimization:
       - Identify objects older than 60 days. Recommend transition to `GLACIER Instant Retrieval` or `STANDARD_IA`.
       - Include prefix, object count, total size, and estimated monthly savings.
 
-    2. **Small Object Warnings**:
+    2. Small Object Warnings:
       - Detect large numbers of small files (especially `.parquet`, `.csv`, `.json`) under the same prefix.
       - Recommend compaction (e.g., merge small parquet files into larger row groups).
       - Estimate total number of files, average size, and mention performance impact on queries.
 
-    3. **Iceberg Table Hygiene**:
+    3. Iceberg Table Hygiene:
       - Identify `iceberg/` folders. Check for `metadata/`, `snapshots/`, and if possible infer if they are frozen.
       - If frozen, recommend removing stale snapshot and metadata files.
 
-    4. **Useless/Temp File Cleanup**:
+    4. Useless/Temp File Cleanup:
       - Flag `.ipynb_checkpoints/`, `_SUCCESS`, `_temporary`, `.DS_Store`, and similar artifacts.
       - Recommend deletion of these files. Include counts and total size per prefix.
 
-    5. **Deep Storage Bucket Flag**:
+    5. Deep Storage Bucket Flag:
       - If total bucket size > 50 GB, include a pointer:
         "Consider enabling server-side access logging to track access patterns and detect cold data."
         (Make this a soft recommendation.)
 
-    6. **Uneven Prefix Distribution**:
+    6. Uneven Prefix Distribution:
       - Detect prefixes with skewed data distribution. (E.g., one folder has 10K files, others have 10).
       - Recommend refactoring prefix structure if causing hot partitions or affecting listing performance.
 
-    7. **Old Files Audit**:
+    7. Old Files Audit:
       - Find files older than 6 months or 1 year.
       - Ask if they're still needed. Suggest cold storage or archival.
 
-    8. **Large Single Files**:
+    8. Large Single Files:
       - Identify any file over 1 GB or 5 GB.
       - Recommend checking if these are needed, and if multipart upload is used (based on size pattern).
       - Flag for manual review if unnecessary.
 
-    9. **Frequent Prefixes**:
+    9. Frequent Prefixes:
       - Identify prefixes with many daily writes (based on last modified patterns).
       - Suggest applying S3 prefix hashing or partitioning (e.g., by date/hour) to improve write performance if that pattern is visible.
 
@@ -58,7 +61,9 @@ analyze_s3_bucket_task:
       - Estimated monthly cost savings (use AWS pricing estimates)
       - Clear reason behind the suggestion
 
-    Don't leave any TODOs or placeholders. Do this research for all the buckets in the set.
+    Don't leave any TODOs or placeholders.
+
+    Prefixes: {prefixes}
   expected_output: >
     A structured list of recommendations grouped by bucket, including:
       - Optimization strategy

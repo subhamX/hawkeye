@@ -8,6 +8,7 @@ dependencies = [
     "boto3>=1.38.2",
     "boto3-stubs[essential]>=1.38.2",
     "crewai[tools]>=0.114.0,<1.0.0",
+    "google-generativeai>=0.8.5",
 ]
 
 [project.scripts]
