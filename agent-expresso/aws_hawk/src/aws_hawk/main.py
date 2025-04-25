@@ -1,13 +1,8 @@
 #!/usr/bin/env python
-import sys
 import warnings
 
-from datetime import datetime
 import os
-
-from aws_hawk.crew import AwsHawk
-
-from aws_hawk.s3_insights_flow import S3InsightsFlow
+from aws_hawk.flows.s3_insights_flow import S3InsightsFlow
 
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")

@@ -96,7 +96,7 @@ def build_prefix_graph(bucket_name: str) -> Dict[str, Any]:
 
 # Example usage
 if __name__ == "__main__":
-    # bucket_name = 'cpm-selected-customers-logs-output-iad-local-621947758064'
+    bucket_name = 'cpm-selected-customers-logs-output-iad-local-621947758064'
     graph = build_prefix_graph(bucket_name)
     print(graph)
 

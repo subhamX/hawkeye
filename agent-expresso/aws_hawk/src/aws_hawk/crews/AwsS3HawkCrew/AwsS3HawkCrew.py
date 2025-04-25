@@ -1,17 +1,16 @@
 from crewai import Agent, Crew, Process, Task, LLM
-from crewai.project import CrewBase, agent, crew, task
+from crewai.project import CrewBase, agent, crew, task, before_kickoff
 from aws_hawk.tools.boto3_tool import Boto3Tool
 import os
 from crewai.knowledge.source.json_knowledge_source import JSONKnowledgeSource
-
+from aws_hawk.models.s3_agent import S3StorageRecommendations, S3SecurityRecommendations
 from typing import Any
-# If you want to run a snippet of code before or after the crew starts,
-# you can use the @before_kickoff and @after_kickoff decorators
-# https://docs.crewai.com/concepts/crews#example-crew-class-with-decorators
+import shutil
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 llmxx = LLM(
-    model="gemini/gemini-2.5-flash-preview-04-17",
+    # model="gemini/gemini-2.5-flash-preview-04-17",
+    model="gemini/gemini-2.0-flash",
     api_key=GEMINI_API_KEY,
 )
 
@@ -21,13 +20,17 @@ llmxx = LLM(
 
 
 @CrewBase
-class AwsHawk():
-    """AwsHawk crew"""
-    file_path = None
+class AwsS3Hawk():
+    """AwsS3Hawk crew"""
+    identifier = None
 
     agents_config = 'config/agents.yaml'
     tasks_config = 'config/tasks.yaml'
     
+    
+    def __init__(self, identifier: str):
+        self.identifier = identifier
+        
 
     @agent
     def s3_researcher(self) -> Agent:
@@ -42,13 +45,16 @@ class AwsHawk():
     def analyze_s3_bucket_task(self) -> Task:
         return Task(
             config=self.tasks_config['analyze_s3_bucket_task'],
+            output_json=S3StorageRecommendations,
+            output_file=f'./output/awss3hawk/analyze_s3_bucket_task_{self.identifier}.md',
         )
         
     @task
     def analyze_s3_bucket_security_task(self) -> Task:
         return Task(
             config=self.tasks_config['analyze_s3_bucket_security_task'],
-            output_file='./output/analyze_s3_bucket_security_task.md',
+            output_json=S3SecurityRecommendations,
+            output_file=f'./output/awss3hawk/analyze_s3_bucket_security_task_{self.identifier}.md',
         )
 
     @crew

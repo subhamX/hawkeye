@@ -66,7 +66,7 @@ analyze_s3_bucket_task:
 
     Prefixes: {prefixes}
   expected_output: >
-    A structured list of recommendations grouped by bucket, including:
+    A structured list of recommendations grouped by bucket, including: (in structured json format)
       - Optimization strategy
       - Data used to infer the recommendation (prefixes, object stats)
       - Estimated impact (in size, performance, and $)
@@ -94,14 +94,11 @@ analyze_s3_bucket_security_task:
     Your aim is to generate recommendations to improve the security of the bucket. Go wild, and use boto3 to fetch more info and give actionable recommendations based of data.
     It shouldn't be generic recommendations, but should be specific to the bucket and the data in the bucket.
 
-    You should talk about only security, and lifecycle etc optimizations only.
     Your recommendations should be easy to digest, and should be direct.
-
-
+    In your output, you should only talk about the optimizations, and not the thinking process or anything else. Don't leave any TODOs, TBH etc.
+    Ensure that you're not repeating yourself. ANd no generic recommendations.
   expected_output: >
-    - A list of recommendations
-    - Data used to infer the recommendation (prefixes, object stats)
-    - Estimated impact (in size, performance, and $)
+    A structured list of recommendations grouped by bucket, including: (in structured json format)
   agent: s3_researcher
 
 

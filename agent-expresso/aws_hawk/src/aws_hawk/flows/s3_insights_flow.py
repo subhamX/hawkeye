@@ -3,14 +3,13 @@ import boto3
 
 from pydantic import BaseModel
 from crewai.flow import Flow, listen, start
-from mypy_boto3_s3.client import S3Client
-from aws_hawk.crew import AwsHawk
+from aws_hawk.crews.AwsS3HawkCrew.AwsS3HawkCrew import AwsS3Hawk
 from typing import Any
 import json
 import os
 from datetime import datetime
 from aws_hawk.utils.build_prefix_graph import build_prefix_graph
-
+import shutil
 
 
 class S3InsightsState(BaseModel):
@@ -19,8 +18,8 @@ class S3InsightsState(BaseModel):
 
 class S3InsightsFlow(Flow[S3InsightsState]):
     run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    knowledge_base_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'knowledge')
-    s3_knowledge_dir_path = None
+    knowledge_base_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'knowledge')
+    s3_knowledge_dir_path = None#'run_20250426_011908' #None
 
 
     def __init__(self):
@@ -29,6 +28,10 @@ class S3InsightsFlow(Flow[S3InsightsState]):
             print(f"Using knowledge from {self.s3_knowledge_dir_path}")
         else:
             print(f"We shall be building knowledge from scratch")
+            
+        # delete the output directory
+        if os.path.exists('./output/awss3hawk'):
+            shutil.rmtree('./output/awss3hawk')
 
     def get_file_path_relative_to_knowledge_dir(self, bucket_name):
         return os.path.join(self.run_id if not self.s3_knowledge_dir_path else self.s3_knowledge_dir_path, f"{bucket_name}.json")
@@ -95,12 +98,10 @@ class S3InsightsFlow(Flow[S3InsightsState]):
             creation_date = bucket_dict['CreationDate']
             print(f"Analyzing bucket: {bucket_name} created on {creation_date}")
             # use the agent..
-            result = AwsHawk().crew().kickoff(inputs={
+            AwsS3Hawk(identifier=bucket_name).crew().kickoff(inputs={
                 'bucket_name': bucket_name,
                 'prefixes': self.state.s3_prefixes_by_bucket[bucket_name]
             })
-            with open('./output/s3_insights_flow.md', 'a') as f:
-                f.write(result.__str__())
             print('Next bucket...', self.state.s3_buckets)
             
 
