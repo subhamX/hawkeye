@@ -1,22 +1,6 @@
-fetch_all_s3_buckets_task:
-  description: >
-    Perform deep analysis of S3 buckets in AWS account {aws_account_id}. Fetch all S3 buckets.
-  expected_output: >
-    A list of all S3 buckets in the AWS account.
-  agent: s3_researcher
-
-
-fetch_all_prefixes_task:
-  description: >
-    Given a S3 bucket name, fetch all prefixes in the S3 bucket. If bucket name is not provided, throw an error. Don;t try to fetch the bucket name yourself.
-  expected_output: >
-    A list of all prefixes in the S3 bucket. Everything, including recursive prefixes, and more.
-  agent: s3_researcher
-
-
 analyze_s3_bucket_task:
   description: >
-    Analyze the S3 bucket bucket_name given the list of object/prefixes in the bucket prefixes.
+    Analyze the S3 bucket {bucket_name} given the list of object/prefixes in the bucket.
     If bucket name or prefixes are not provided, throw an error. Don't try to fetch the bucket name or prefixes yourself.
 
     Generate detailed, actionable, and **data-driven recommendations** to optimize cost and performance. 

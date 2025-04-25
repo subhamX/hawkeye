@@ -16,6 +16,10 @@ uvicorn main:app --host=0.0.0.0 --port=${PORT:-8000}
 ```
 
 
+```
+uvx --with 'boto3==1.38.2' mypy-boto3-builder
+```
+
 ## Running the payments service
 
 ```bash

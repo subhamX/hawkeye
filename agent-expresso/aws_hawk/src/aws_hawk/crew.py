@@ -25,10 +25,11 @@ class AwsHawk():
 
     # If you would like to add tools to your agents, you can learn more about it here:
     # https://docs.crewai.com/concepts/agents#agent-tools
+    @agent
     def s3_researcher(self) -> Agent:
         return Agent(
             config=self.agents_config['s3_researcher'],
-            tools=[Boto3Tool()],
+            # tools=[Boto3Tool()],
             verbose=True,
             llm=llm,
         )
@@ -43,19 +44,19 @@ class AwsHawk():
     # To learn more about structured task outputs,
     # task dependencies, and task callbacks, check out the documentation:
     # https://docs.crewai.com/concepts/tasks#overview-of-a-task
-    @task
-    def fetch_all_s3_buckets_task(self) -> Task:
-        return Task(
-            config=self.tasks_config['fetch_all_s3_buckets_task'],
-        )
+    # @task
+    # def fetch_all_s3_buckets_task(self) -> Task:
+    #     return Task(
+    #         config=self.tasks_config['fetch_all_s3_buckets_task'],
+    #     )
 
 
-    @task
-    def fetch_all_prefixes_task(self) -> Task:
-        return Task(
-            config=self.tasks_config['fetch_all_prefixes_task'],
-            context=[self.fetch_all_s3_buckets_task()]
-        )
+    # @task
+    # def fetch_all_prefixes_task(self) -> Task:
+    #     return Task(
+    #         config=self.tasks_config['fetch_all_prefixes_task'],
+    #         context=[self.fetch_all_s3_buckets_task()]
+    #     )
 
 
 
@@ -63,7 +64,6 @@ class AwsHawk():
     def analyze_s3_bucket_task(self) -> Task:
         return Task(
             config=self.tasks_config['analyze_s3_bucket_task'],
-            context=[self.fetch_all_prefixes_task()],
         )
 
 
