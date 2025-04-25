@@ -4,13 +4,12 @@ import boto3
 from pydantic import BaseModel
 from crewai.flow import Flow, listen, start
 from mypy_boto3_s3.client import S3Client
-from mypy_boto3_ec2.client import EC2Client
 from aws_hawk.crew import AwsHawk
 from typing import Any
 import json
 import os
 from datetime import datetime
-
+from aws_hawk.utils.build_prefix_graph import build_prefix_graph
 
 
 
@@ -21,7 +20,7 @@ class S3InsightsState(BaseModel):
 class S3InsightsFlow(Flow[S3InsightsState]):
     run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     knowledge_base_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'knowledge')
-    s3_knowledge_dir_path = 'run_20250425_212604' #None
+    s3_knowledge_dir_path = None
 
 
     def __init__(self):
@@ -44,7 +43,7 @@ class S3InsightsFlow(Flow[S3InsightsState]):
             s3_buckets_with_too_much_info = [json.load(open(os.path.join(self.knowledge_base_dir, self.s3_knowledge_dir_path, f))) for f in buckets]
             
             for bucket in s3_buckets_with_too_much_info:
-                self.state.s3_buckets = [{'Name': bucket['bucket_name'], 'CreationDate': bucket['creation_date']}]
+                self.state.s3_buckets.append({'Name': bucket['bucket_name'], 'CreationDate': bucket['creation_date']})
                 self.state.s3_prefixes_by_bucket[bucket['bucket_name']] = bucket['prefixes']
 
             print(f"Found {len(self.state.s3_buckets)} buckets in knowledge directory. {self.state.s3_buckets}")
@@ -53,7 +52,13 @@ class S3InsightsFlow(Flow[S3InsightsState]):
         print("Fetching S3 buckets with regions")
         client = boto3.client("s3")
         response = client.list_buckets()
-        self.state.s3_buckets = response['Buckets'][1:5] # TODO: for testing...
+        
+        # filter out, and only keep the buckets in the ALLOWLISTED_BUCKETS environment variable
+        self.state.s3_buckets = [bucket for bucket in response['Buckets'] if bucket['Name'] in os.environ['ALLOWLISTED_BUCKETS'].split(',')]
+        
+        print(f"Found {len(self.state.s3_buckets)} buckets in AWS. {self.state.s3_buckets}")
+
+
 
 
     @listen(fetch_s3_buckets)
@@ -71,62 +76,16 @@ class S3InsightsFlow(Flow[S3InsightsState]):
             bucket_name = bucket_dict['Name']
             creation_date = bucket_dict['CreationDate']
             print(f"Processing bucket: {bucket_name} created on {creation_date}")
-            client: S3Client = boto3.client("s3")
             
             # Initialize the bucket entry
-            bucket_prefix_keys[bucket_name] = {}
-            
-            # Get all objects in the bucket
-            response = client.list_objects_v2(Bucket=bucket_name)
-            
-            # Process the contents
-            if 'Contents' in response:
-                for obj in response['Contents']:
-                    key = obj['Key']
-                    size = obj['Size']
-                    last_modified = obj['LastModified']
-                    storage_class = obj['StorageClass']
-                    # Get the prefix (everything before the last '/')
-                    prefix = '/'.join(key.split('/')[:-1]) + '/' if '/' in key else ''
-                    
-                    # Initialize the prefix list if it doesn't exist
-                    if prefix not in bucket_prefix_keys[bucket_name]:
-                        bucket_prefix_keys[bucket_name][prefix] = []
-                    
-                    # Add the key to the appropriate prefix list
-                    bucket_prefix_keys[bucket_name][prefix].append({
-                        'key': key,
-                        'size': size,
-                        'last_modified': last_modified.isoformat(),
-                        'storage_class': storage_class
-                    })
-            
-            # Continue fetching if there are more pages
-            while response.get('IsTruncated', False):
-                response = client.list_objects_v2(
-                    Bucket=bucket_name,
-                    ContinuationToken=response['NextContinuationToken']
-                )
-                if 'Contents' in response:
-                    print(f"Found {len(response['Contents'])} objects in bucket {bucket_name}")
-                    for obj in response['Contents']:
-                        key = obj['Key']
-                        prefix = '/'.join(key.split('/')[:-1]) + '/' if '/' in key else ''
-                        
-                        if prefix not in bucket_prefix_keys[bucket_name]:
-                            bucket_prefix_keys[bucket_name][prefix] = []
-                        
-                        bucket_prefix_keys[bucket_name][prefix].append(key)
-            
-            # store the data in a json file in ./knowledge/aws_hawk_{timestamp}/{bucket_name}.json
-            
+            bucket_prefix_keys[bucket_name] = build_prefix_graph(bucket_name)
             file_path_relative = os.path.join(self.knowledge_base_dir, self.get_file_path_relative_to_knowledge_dir(bucket_name))
 
             os.makedirs(os.path.dirname(file_path_relative), exist_ok=True)
             with open(file_path_relative, 'w') as f:
                 json.dump({'bucket_name': bucket_name, 'prefixes': bucket_prefix_keys[bucket_name], 'creation_date': creation_date.isoformat()}, f)        
 
-        
+        self.state.s3_prefixes_by_bucket = bucket_prefix_keys
 
     @listen(fetch_s3_prefixes_for_all_buckets)
     def analyze_s3_buckets(self):
@@ -135,13 +94,15 @@ class S3InsightsFlow(Flow[S3InsightsState]):
             bucket_name = bucket_dict['Name']
             creation_date = bucket_dict['CreationDate']
             print(f"Analyzing bucket: {bucket_name} created on {creation_date}")
+            # use the agent..
             result = AwsHawk().crew().kickoff(inputs={
                 'bucket_name': bucket_name,
                 'prefixes': self.state.s3_prefixes_by_bucket[bucket_name]
             })
-            print(result)
+            with open('./output/s3_insights_flow.md', 'a') as f:
+                f.write(result.__str__())
+            print('Next bucket...', self.state.s3_buckets)
             
-            # TODO: use the agent..
 
 
 # def kickoff():

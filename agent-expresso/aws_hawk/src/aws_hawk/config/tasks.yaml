@@ -5,6 +5,7 @@ analyze_s3_bucket_task:
 
     Generate detailed, actionable, and data-driven recommendations to optimize cost and performance. 
     Do not include vague or generic suggestions. Be specific and quantify potential savings whenever possible.
+    Remember give actionable recommendations based of data. It shouldn't be generic recommendations, but should be specific to the bucket and the data in the bucket.
 
     Statistics:
     - Total number of objects in the bucket: total_objects
@@ -12,7 +13,7 @@ analyze_s3_bucket_task:
     - Total estimated cost of the bucket: total_cost
 
     Some of the example of recommendations are:
-    Remember, not all may be applicable, if you do not find some or more recommendations applicable for the bucket, tell them, everything is already good, and don't show unnecessary text.
+    Remember, not all may be applicable, if you do not find some or more recommendations applicable for the bucket, then don't talk about it. No need to even mention about it.
     THINK more.. Don't be shy, or lazy. If you need more data use boto3 to fetch more info. Keep the scope to this bucket only.
 
 
@@ -70,3 +71,37 @@ analyze_s3_bucket_task:
       - Data used to infer the recommendation (prefixes, object stats)
       - Estimated impact (in size, performance, and $)
   agent: s3_researcher
+
+
+analyze_s3_bucket_security_task:
+  description: >
+    Analyze the S3 bucket {bucket_name} bucket policy, bucket ACL, bucket versioning, bucket logging etc.
+
+    Check if they have multipart upload delete enabled in lifecycle policy.
+
+    Recommend using bucket logging only if the bucket is big.
+
+    If the bucket has public access, and there are html, css files, recommend them to use cloudfront to serve them. 
+    Otherwise, it will cost them tonnes of money. Also recommend them to use iam, and s3 bucket policy to control access.
+
+    Similarly, think of more scenarios.
+
+    S3 get_bucket_policy, get_bucket_acl, get_bucket_versioning, get_bucket_logging are the boto3 functions you can use to fetch the data.
+
+    Remember: botocore.exceptions.ClientError: An error occurred (NoSuchBucketPolicy, NoSuchLifecycleConfiguration) are not exactly errors. It means that the bucket policy does not exist. Similarly there could be for others. Some errors are expected, but others are fatal. Think more before deciding if the error is a fatal error or not.
+
+    For reference the following are the prefixes in the bucket: {prefixes}.
+    Your aim is to generate recommendations to improve the security of the bucket. Go wild, and use boto3 to fetch more info and give actionable recommendations based of data.
+    It shouldn't be generic recommendations, but should be specific to the bucket and the data in the bucket.
+
+    You should talk about only security, and lifecycle etc optimizations only.
+    Your recommendations should be easy to digest, and should be direct.
+
+
+  expected_output: >
+    - A list of recommendations
+    - Data used to infer the recommendation (prefixes, object stats)
+    - Estimated impact (in size, performance, and $)
+  agent: s3_researcher
+
+

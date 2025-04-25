@@ -12,8 +12,12 @@ from typing import Any
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 llmxx = LLM(
     model="gemini/gemini-2.5-flash-preview-04-17",
-    api_key=GEMINI_API_KEY
+    api_key=GEMINI_API_KEY,
 )
+
+# llmxx = LLM(
+#     model="o3-mini",
+# )
 
 
 @CrewBase
@@ -21,14 +25,10 @@ class AwsHawk():
     """AwsHawk crew"""
     file_path = None
 
-    # Learn more about YAML configuration files here:
-    # Agents: https://docs.crewai.com/concepts/agents#yaml-configuration-recommended
-    # Tasks: https://docs.crewai.com/concepts/tasks#yaml-configuration-recommended
     agents_config = 'config/agents.yaml'
     tasks_config = 'config/tasks.yaml'
+    
 
-    # If you would like to add tools to your agents, you can learn more about it here:
-    # https://docs.crewai.com/concepts/agents#agent-tools
     @agent
     def s3_researcher(self) -> Agent:
         return Agent(
@@ -42,6 +42,13 @@ class AwsHawk():
     def analyze_s3_bucket_task(self) -> Task:
         return Task(
             config=self.tasks_config['analyze_s3_bucket_task'],
+        )
+        
+    @task
+    def analyze_s3_bucket_security_task(self) -> Task:
+        return Task(
+            config=self.tasks_config['analyze_s3_bucket_security_task'],
+            output_file='./output/analyze_s3_bucket_security_task.md',
         )
 
     @crew
