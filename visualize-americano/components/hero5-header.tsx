@@ -27,10 +27,11 @@ export const HeroHeader = () => {
                             href="/"
                             aria-label="home"
                             className="flex items-center space-x-3 group">
-                            <div className="relative">
+                            {/* <div className="relative">
                                 <div className="absolute -inset-1 rounded-lg bg-gradient-to-r from-gray-800 to-black opacity-75 blur group-hover:opacity-100 transition duration-200"></div>
                                 <div className="relative flex items-center justify-center w-10 h-10 bg-white dark:bg-gray-900 rounded-lg">
                                     <Eye className="w-6 h-6 text-gray-900" />
+
                                 </div>
                             </div>
                             <div className="flex flex-col">
@@ -38,7 +39,9 @@ export const HeroHeader = () => {
                                     HawkEye
                                 </span>
                                 <span className="text-xs text-muted-foreground">Cloud Intelligence Platform</span>
-                            </div>
+                            </div> */}
+
+                            <img src="/logo.jpeg" alt="HawkEye" width={200} height={100} />
                         </Link>
 
                         <div className="flex items-center gap-4">
