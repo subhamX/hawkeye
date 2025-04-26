@@ -11,7 +11,7 @@ import boto3
 import json
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 
-def entrypoint(
+async def entrypoint(
     account_id: str,
     work_scope: str,
     logger: Logger,
@@ -26,9 +26,9 @@ def entrypoint(
     }
     
     try:
-        # S3InsightsFlow().kickoff(inputs=inputs)
-        # AwsEc2Hawk(identifier='global').crew().kickoff(inputs=inputs)
-        # CfnInsightsFlow().kickoff(inputs=inputs)
+        await S3InsightsFlow().kickoff_async(inputs=inputs)
+        await AwsEc2Hawk(identifier='global').crew().kickoff_async(inputs=inputs)
+        await CfnInsightsFlow().kickoff_async(inputs=inputs)
         
         # use boto3 to upload the files in ./output/aws*hawk to the s3 bucket
         s3 = boto3.client('s3',
@@ -37,23 +37,35 @@ def entrypoint(
             aws_secret_access_key=os.getenv('S3_SECRET_KEY')
         )
         
-        base_dir = os.path.join(os.path.dirname(__file__), "..", "..", "output")
+        base_dir = os.path.join(os.path.dirname(__file__), "..", "output")
         
         target_dir = ['awsec2hawk', 'awscfnhawk', 'awss3hawk']
         super_json = {}
         for service in target_dir:
             for file in os.listdir(os.path.join(base_dir, service)):
-                with open(os.path.join(base_dir, service, file), 'r') as f:
-                    if service not in super_json:
-                        super_json[service] = []
-                    super_json[service].append(json.load(f))
+                try:
+                    file_path = os.path.join(base_dir, service, file)
+                    print(f"Reading file: {file_path}")
+                    with open(file_path, 'r') as f:
+                        if service not in super_json:
+                            super_json[service] = []
+                        super_json[service].append(json.load(f))
+                except json.JSONDecodeError as e:
+                    print(f"Error reading JSON file {file_path}: {str(e)}")
+                    print(f"File contents:")
+                    with open(file_path, 'r') as f:
+                        print(f.read())
+                    raise
+                except Exception as e:
+                    print(f"Unexpected error reading file {file_path}: {str(e)}")
+                    raise
         
         
         # upload the super_json to the s3 bucket
         print(f'Uploading super.json to s3 bucket aws-hawk-output')
         s3.put_object(Bucket='aws-hawk', Key=f'{job_id}/super.json', Body=json.dumps(super_json))
         
-        
+        print(f'Uploaded super.json to s3 bucket aws-hawk-output.. JobId: {job_id}')
         return {
             'job_id': job_id,
             'raw_recommendations': super_json

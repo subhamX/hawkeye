@@ -29,7 +29,7 @@ class AwsEc2Hawk():
         
         # delete the output directory
         if os.path.exists('./output/awsec2hawk'):
-            shutil.rmtree('./output/awsec2hawk')        
+            shutil.rmtree('./output/awsec2hawk')
 
     def fetch_ec2_instances(self) -> List[Dict[str, Any]]:
         """Fetch all EC2 instances with their details"""
@@ -38,7 +38,6 @@ class AwsEc2Hawk():
         
         for reservation in response['Reservations']:
             for instance in reservation['Instances']:
-                print(instance)
                 instance_info = {
                     'InstanceId': instance['InstanceId'],
                     'InstanceType': instance['InstanceType'],
@@ -125,9 +124,18 @@ class AwsEc2Hawk():
             'timestamp': datetime.now(UTC).isoformat()
         }
         
+        print("Data structure before JSON serialization:")
+        print(json.dumps(data, indent=2, default=str))
+        
+        print("Inputs:", inputs)
+        
         # Save to JSON file
-        with open(f'./output/awsec2hawk/raw_data_{self.identifier}.json', 'w') as f:
-            json.dump(data, f, indent=2)
+        try:
+            with open(f'./output/awsec2hawk/raw_data_{self.identifier}.json', 'w') as f:
+                json.dump(data, f, indent=2, default=str)
+        except Exception as e:
+            print(f"Error during JSON serialization: {str(e)}")
+            raise
         
         return inputs
 

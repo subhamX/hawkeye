@@ -13,8 +13,8 @@ import shutil
 
 
 class S3InsightsState(BaseModel):
-    s3_buckets: list[dict[str, str]] = [] # [{"Name": "bucket-name", "CreationDate": "datetime.datetime"}]
-    s3_prefixes_by_bucket: dict[str, list[dict[str, Any]]] = {} # {bucket_name: [{key: str, size: int, last_modified: datetime.datetime, storage_class: str}]}
+    s3_buckets: list[dict[str, str]] = [] # [{"Name": "bucket-name", "CreationDate": "str"}]
+    s3_prefixes_by_bucket: dict[str, list[dict[str, Any]]] = {} # {bucket_name: [{key: str, size: int, last_modified: str, storage_class: str}]}
 
 class S3InsightsFlow(Flow[S3InsightsState]):
     run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -57,7 +57,7 @@ class S3InsightsFlow(Flow[S3InsightsState]):
         response = client.list_buckets()
         
         # filter out, and only keep the buckets in the ALLOWLISTED_BUCKETS environment variable
-        self.state.s3_buckets = [bucket for bucket in response['Buckets'] if bucket['Name'] in os.environ['ALLOWLISTED_BUCKETS'].split(',')]
+        self.state.s3_buckets = [{'Name': bucket['Name'], 'CreationDate': bucket['CreationDate'].isoformat()} for bucket in response['Buckets'] if bucket['Name'] in os.environ['ALLOWLISTED_BUCKETS'].split(',')]
         
         print(f"Found {len(self.state.s3_buckets)} buckets in AWS. {self.state.s3_buckets}")
 
@@ -86,7 +86,7 @@ class S3InsightsFlow(Flow[S3InsightsState]):
 
             os.makedirs(os.path.dirname(file_path_relative), exist_ok=True)
             with open(file_path_relative, 'w') as f:
-                json.dump({'bucket_name': bucket_name, 'prefixes': bucket_prefix_keys[bucket_name], 'creation_date': creation_date.isoformat()}, f)        
+                json.dump({'bucket_name': bucket_name, 'prefixes': bucket_prefix_keys[bucket_name], 'creation_date': creation_date}, f)        
 
         self.state.s3_prefixes_by_bucket = bucket_prefix_keys
 

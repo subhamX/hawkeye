@@ -1,3 +1,5 @@
+# HawkEye
+
 
 ## Running agent-expresso
 
@@ -68,9 +70,9 @@ export SMART_CONTRACT_ADDRESS='addr_test1wrsr3luhqv0ftxjc6yrafw0tfesvtecrpck0s83
 
 ```bash
 curl -X 'POST' \
-  'http://localhost:3001/api/v1/registry/' \
+  'https://payment.masumi.network/api/v1/registry/' \
   -H 'accept: application/json' \
-  -H "token: $MASUMI_PAYMENTS_SERVICE_ADMIN_KEY" \
+  -H "token: iofsnaiojdoiewqajdriknjonasfoinasd" \
   -H 'Content-Type: application/json' \
   -d '{
   "network": "Preprod",
@@ -79,31 +81,31 @@ curl -X 'POST' \
     "tag1",
     "tag2"
   ],
-  "name": "Actual",
-  "description": "Agent Description",
+  "name": "AWS HawkEye",
+  "description": "Get comprehensive insights into your AWS infrastructure with our intelligent agents",
   "Author": {
-    "name": "Author Name",
+    "name": "subhamx",
     "contactEmail": "author@example.com",
     "contactOther": "author_contact_other",
-    "organization": "Author Organization"
+    "organization": "AWS"
   },
-  "apiBaseUrl": "http://localhost:8000",
+  "apiBaseUrl": "https://aws-hawkeye.vercel.app/docs/",
   "Legal": {
     "privacyPolicy": "Privacy Policy URL",
     "terms": "Terms of Service URL",
     "other": "Other Legal Information URL"
   },
-  "sellingWalletVkey": "37a8afce157cacd2cd26d562707aaa38c415499ad5d0ddda8585ba44",
+  "sellingWalletVkey": "f9455f8373a0f538b62202ef6ebca46018874330a9ab8e0278cfcfee",
   "Capability": {
-    "name": "Capability Name",
+    "name": "Analyze EC2, S3, and CloudFormation resources for security, performance, and cost optimization.",
     "version": "1.0.0"
   },
   "AgentPricing": {
     "pricingType": "Fixed",
     "Pricing": [
       {
-        "unit": "usdm",
-        "amount": "1"
+        "unit": "lovelace",
+        "amount": "10000000"
       }
     ]
   }

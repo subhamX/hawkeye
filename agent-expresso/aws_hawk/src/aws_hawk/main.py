@@ -8,6 +8,8 @@ from masumi.config import Config
 from masumi.payment import Payment, Amount
 from aws_hawk.logging_config import setup_logging
 from aws_hawk.entrypoint import entrypoint
+from logging import Logger
+import asyncio
 
 # Configure logging
 logger = setup_logging()
@@ -68,10 +70,10 @@ class ProvideInputRequest(BaseModel):
 # ─────────────────────────────────────────────────────────────────────────────
 # CrewAI Task Execution
 # ─────────────────────────────────────────────────────────────────────────────
-async def execute_crew_task(input_data: str) -> str:
+async def execute_crew_task(input_data: str, job_id: str, logger: Logger) -> str:
     """ Execute a CrewAI task with Research and Writing Agents """
     logger.info(f"Starting CrewAI task with input: {input_data}")
-    result = entrypoint(account_id=input_data["account_id"], logger=logger)
+    result = await entrypoint(input_data["aws_account_id"], input_data["work_scope"], logger, job_id)
     logger.info("CrewAI task completed successfully")
     return result
 
@@ -83,6 +85,7 @@ async def start_job(data: StartJobRequest):
     """ Initiates a job and creates a payment request """
     print(f"Received data: {data}")
     print(f"Received data.input_data: {data.input_data}")
+    
     try:
         job_id = str(uuid.uuid4())
         print(f"Job ID: {job_id}")
@@ -97,6 +100,7 @@ async def start_job(data: StartJobRequest):
         # Define payment amounts
         payment_amount = os.getenv("PAYMENT_AMOUNT", "10000000")  # Default 10 ADA
         payment_unit = os.getenv("PAYMENT_UNIT", "lovelace") # Default lovelace
+
 
         amounts = [Amount(amount=payment_amount, unit=payment_unit)]
         logger.info(f"Using payment amount: {payment_amount} {payment_unit}")
@@ -132,7 +136,7 @@ async def start_job(data: StartJobRequest):
         # Start monitoring the payment status
         payment_instances[job_id] = payment
         logger.info(f"Starting payment status monitoring for job {job_id}")
-        await payment.start_status_monitoring(payment_callback)
+        await payment.start_status_monitoring(payment_callback, interval_seconds=10)
 
         # Return the response in the required format
         return {
@@ -174,8 +178,7 @@ async def handle_payment_status(job_id: str, payment_id: str) -> None:
         logger.info(f"Input data: {jobs[job_id]["input_data"]}")
 
         # Execute the AI task
-        result = await execute_crew_task(jobs[job_id]["input_data"])
-        result_dict = result.json_dict
+        result_dict = await execute_crew_task(jobs[job_id]["input_data"], job_id, logger)
         logger.info(f"Crew task completed for job {job_id}")
         
         # Mark payment as completed on Masumi
@@ -186,7 +189,7 @@ async def handle_payment_status(job_id: str, payment_id: str) -> None:
         # Update job status
         jobs[job_id]["status"] = "completed"
         jobs[job_id]["payment_status"] = "completed"
-        jobs[job_id]["result"] = result
+        jobs[job_id]["result"] = result_dict
 
         # Stop monitoring payment status
         if job_id in payment_instances:

@@ -7,11 +7,11 @@ analyze_ec2_instances_task:
     2. EBS volume types and configurations. Maybe there is an EBS volume that is not attached to any instance.
     3. Security groups and network access
     4. Instance state and lifecycle
-    5. Cost optimization opportunities
+    5. Cost optimization opportunities. Things like if you find ec2 instances are overprovisioned etc. Suggest the right instance type.
     6. Performance considerations
     7. Best practices compliance
     8. Potential security risks
-    9. Recommendations for improvements    
+    9. Recommendations for improvements 
   expected_output: >
     A comprehensive analysis of EC2 instances and EBS volumes, including security, performance, and cost optimization recommendations
   agent: ec2_analyst
