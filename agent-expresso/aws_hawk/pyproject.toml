@@ -8,15 +8,22 @@ dependencies = [
     "boto3>=1.38.2",
     "boto3-stubs[essential]>=1.38.2",
     "crewai[tools]>=0.114.0,<1.0.0",
+    "fastapi>=0.115.12",
     "google-generativeai>=0.8.5",
+    "httpx>=0.27.2",
+    "masumi>=0.1.34",
+    "pydantic>=2.11.3",
+    "python-dotenv>=1.1.0",
+    "python-multipart>=0.0.20",
+    "uvicorn>=0.34.2",
 ]
 
 [project.scripts]
-aws_hawk = "aws_hawk.main:run"
-run_crew = "aws_hawk.main:run"
-train = "aws_hawk.main:train"
-replay = "aws_hawk.main:replay"
-test = "aws_hawk.main:test"
+aws_hawk_adhoc_test = "aws_hawk.adhoc_testing:run"
+# run_crew = "aws_hawk.main:run"
+# train = "aws_hawk.main:train"
+# replay = "aws_hawk.main:replay"
+# test = "aws_hawk.main:test"
 
 [build-system]
 requires = ["hatchling"]
