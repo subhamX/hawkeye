@@ -1,10 +1,3 @@
-interface AnalysisData {
-    awsec2hawk?: any[]
-    awscfnhawk?: any[]
-    awss3hawk?: any[]
-}
-
-import { NextResponse } from 'next/server'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
 import AnalysisDetailClient from './AnalysisDetailClient'
 import { HeroHeader } from '@/components/hero5-header'
@@ -24,12 +17,13 @@ const s3Client = new S3Client({
 export default async function AnalysisDetailPage({
     params,
 }: {
-    params: { id: string }
+    params: Promise<{ id: string }>     
 }) {
+    const { id } = await params
     try {
         const command = new GetObjectCommand({
             Bucket: 'aws-hawk',
-            Key: `${params.id}/super.json`,
+            Key: `${id}/super.json`,
         })
         
         const response = await s3Client.send(command)
