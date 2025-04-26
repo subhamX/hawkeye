@@ -1,6 +1,0 @@
-.env
-__pycache__/
-.DS_Store
-s3_insights/
-knowledge/run_*
-output/

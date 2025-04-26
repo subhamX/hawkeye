@@ -15,7 +15,7 @@ output=$(curl -X 'POST' \
   -d '{
   "identifier_from_purchaser": "example_purchaser",
   "input_data": {
-    "aws_account_id": "621947758064",
+    "aws_account_id": "xxx",
     "work_scope": "Do not check for anything in Route53 and Kinesis please."
   }
 }')
