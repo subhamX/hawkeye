@@ -4,7 +4,7 @@ import warnings
 import os
 from aws_hawk.flows.s3_insights_flow import S3InsightsFlow
 from aws_hawk.flows.cfn_insights_flow import CfnInsightsFlow
-
+from aws_hawk.crews.AwsEc2HawkCrew.AwsEc2HawkCrew import AwsEc2Hawk
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 
 # This main file is intended to be a way for you to run your
@@ -27,9 +27,11 @@ def run():
     
     try:
         # crew = AwsHawk().crew(service='s3', file_path='xxx')
-        # crew.reset_memories('all')
+        # crew.reset_memories('all')        
         
-        S3InsightsFlow().kickoff(inputs=inputs)
+        
+        # S3InsightsFlow().kickoff(inputs=inputs)
+        AwsEc2Hawk(identifier='global').crew().kickoff(inputs=inputs)
         # CfnInsightsFlow().kickoff(inputs=inputs)
     except Exception as e:
         raise Exception(f"An error occurred while running the crew: {e}")

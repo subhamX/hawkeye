@@ -1,0 +1,17 @@
+analyze_ec2_instances_task:
+  description: >
+    Analyze EC2 instances and their associated EBS volumes
+    You are tasked with analyzing EC2 instances and their associated EBS volumes in the AWS account.
+    Your analysis should cover:
+    1. Instance types and their suitability for current workloads
+    2. EBS volume types and configurations. Maybe there is an EBS volume that is not attached to any instance.
+    3. Security groups and network access
+    4. Instance state and lifecycle
+    5. Cost optimization opportunities
+    6. Performance considerations
+    7. Best practices compliance
+    8. Potential security risks
+    9. Recommendations for improvements    
+  expected_output: >
+    A comprehensive analysis of EC2 instances and EBS volumes, including security, performance, and cost optimization recommendations
+  agent: ec2_analyst
