@@ -45,7 +45,7 @@ export default function HeroSection() {
           <div className="h-320 absolute left-0 top-0 w-60 -rotate-45 rounded-full bg-[radial-gradient(50%_50%_at_50%_50%,hsla(0,0%,85%,.06)_0,hsla(0,0%,45%,.02)_80%,transparent_100%)] [translate:5%_-50%]" />
           <div className="h-320 -translate-y-87.5 absolute left-0 top-0 w-60 -rotate-45 bg-[radial-gradient(50%_50%_at_50%_50%,hsla(0,0%,85%,.04)_0,hsla(0,0%,45%,.02)_80%,transparent_100%)]" />
         </div>
-        <div className="absolute inset-0 -z-30 opacity-50 blur-sm">
+        <div className="absolute inset-0 -z-30 opacity-20 blur-sm">
           <Image
             src="/main.png"
             alt="background"
@@ -205,7 +205,7 @@ export default function HeroSection() {
               </div>
             </div>
 
-            {/* <AnimatedGroup
+            <AnimatedGroup
               variants={{
                 container: {
                   visible: {
@@ -225,14 +225,7 @@ export default function HeroSection() {
                 />
                 <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background relative mx-auto max-w-6xl overflow-hidden rounded-2xl border p-4 shadow-lg shadow-zinc-950/15 ring-1">
                   <img
-                    className="bg-background relative hidden rounded-2xl dark:block"
-                    src="/main.png"
-                    alt="app screen"
-                    width="2700"
-                    height="1440"
-                  />
-                  <img
-                    className="z-2 border-border/25 relative rounded-2xl border dark:hidden"
+                    className="z-2 border-border/25 relative rounded-2xl border opacity-55"
                     src="/main.png"
                     alt="app screen"
                     width="2700"
@@ -240,7 +233,7 @@ export default function HeroSection() {
                   />
                 </div>
               </div>
-            </AnimatedGroup> */}
+            </AnimatedGroup>
           </div>
         </section>
    

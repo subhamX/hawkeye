@@ -34,8 +34,8 @@ export const HeroHeader = () => {
                                 </div>
                             </div>
                             <div className="flex flex-col">
-                                <span className="text-2xl font-medium bg-gradient-to-r text-gray-900">
-                                    AWS HawkEye
+                                <span className="text-2xl font-bold bg-gradient-to-r text-gray-900">
+                                    HawkEye
                                 </span>
                                 <span className="text-xs text-muted-foreground">Cloud Intelligence Platform</span>
                             </div>

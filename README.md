@@ -74,13 +74,7 @@ curl -X 'POST' \
   -H 'Content-Type: application/json' \
   -d '{
   "network": "Preprod",
-  "ExampleOutputs": [
-    {
-      "name": "example_output_name",
-      "url": "https://example.com/example_output",
-      "mimeType": "application/json"
-    }
-  ],
+  "ExampleOutputs": [],
   "Tags": [
     "tag1",
     "tag2"
