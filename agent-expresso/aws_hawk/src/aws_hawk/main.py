@@ -3,7 +3,7 @@ import warnings
 
 import os
 from aws_hawk.flows.s3_insights_flow import S3InsightsFlow
-
+from aws_hawk.flows.cfn_insights_flow import CfnInsightsFlow
 
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 
@@ -30,6 +30,7 @@ def run():
         # crew.reset_memories('all')
         
         S3InsightsFlow().kickoff(inputs=inputs)
+        # CfnInsightsFlow().kickoff(inputs=inputs)
     except Exception as e:
         raise Exception(f"An error occurred while running the crew: {e}")
 

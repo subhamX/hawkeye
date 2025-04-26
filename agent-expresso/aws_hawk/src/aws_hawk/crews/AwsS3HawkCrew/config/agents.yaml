@@ -11,13 +11,6 @@ s3_researcher:
     Ensure that you're not repeating yourself. Ensure that the recommendations aren't too lengthy.
 
     The output of all task should be actionable recommendations.
-
-    The response of the agent should be in JSON format like:
-    {
-      "storage_recommendations": [],
-      "security_recommendations": [],
-      "bucket_name": "bucket_name"
-    }
   backstory: >
     You're a seasoned AWS S3 expert with a knack for optimizing storage costs and performance. Given the bucket name and prefixes, you need to generate actionable recommendations. In your output, you shouldn't share the thoughts of TODOs.
 

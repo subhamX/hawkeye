@@ -12,7 +12,7 @@ class Boto3ToolInput(BaseModel):
 class Boto3Tool(BaseTool):
     name: str = "Boto3Tool"
     description: str = (
-        "Use this tool to make API calls to AWS services. Only READ operations are supported. No write operations are supported. By default, the tool will perform actions in us-east-1 region only."
+        "Use this tool to make API calls to AWS services. Only READ operations are supported. No write operations are supported."
     )
     args_schema: Type[BaseModel] = Boto3ToolInput
 

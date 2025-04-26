@@ -1,0 +1,77 @@
+analyze_cfn_stack_task:
+  description: >
+    Analyze the CloudFormation template for the stack {stack_name}. Use boto3 to fetch the template and perform a comprehensive analysis covering template structure, security, and cost optimization.
+
+    Your analysis should cover:
+
+    1. Template Structure and Best Practices:
+       - Template organization and structure
+       - Resource dependencies and relationships
+       - Parameter and output definitions
+       - Conditions and mappings usage
+       - Intrinsic functions and pseudo parameters
+       - Resource naming conventions
+       - Tagging standards
+
+    2. Security Analysis:
+       - IAM permissions and policies
+       - Security group configurations
+       - Network access controls
+       - Encryption settings
+       - Secrets management
+       - Public access configurations
+       - Resource policies
+       - Compliance requirements
+
+    3. Cost Optimization:
+       - Resource sizing and configuration
+       - Storage optimization
+       - Compute instance types
+       - Database configurations
+       - Caching strategies
+       - Auto-scaling settings
+       - Reserved capacity opportunities
+       - Cost-effective service alternatives
+
+    For each finding, provide:
+    - Category (Template, Security, or Cost)
+    - Subcategory (e.g., IAM, Storage, Structure, etc.)
+    - Description of the issue
+    - Impact and priority (Critical, High, Medium, Low)
+    - Affected resources
+    - Specific recommendations
+    - Current cost and estimated savings (for cost-related findings)
+    - Remediation steps (for security findings)
+    - Compliance impact (for security findings)
+    - Payback period (for cost-related findings)
+
+    Generate a comprehensive summary including:
+    - Total number of recommendations
+    - Count of findings by priority
+    - Total current cost and estimated savings
+    - Number of security vulnerabilities and compliance issues
+    - Number of template improvements and best practices violations
+
+    Your recommendations should be clear, actionable, and prioritized.
+    Do not include vague or generic suggestions. Be specific and provide concrete examples.
+    Ensure that you're not repeating yourself and no generic recommendations.
+
+    Few examples of what NOT to recommend: there is nothing wrong with them to be honest.
+    The S3 bucket policies for secure access logs deny actions based on 'aws:SecureTransport'.
+    Resources are not consistently tagged. Implement a standard tagging strategy.
+    Resource names like 'Vpc8378EB38' are auto-generated and not very descriptive. Consider using more meaningful names.
+
+
+    Current cost estimate, and potential savings are IMPORTANT, and we must have it!
+
+  expected_output: >
+    A comprehensive analysis of the CloudFormation stack including:
+    - Stack information (name, version, analysis date)
+    - List of recommendations with detailed information
+    - Summary statistics and metrics
+    - Cost analysis
+    - Security assessment
+    - Template improvement suggestions
+  agent: cfn_analyst
+
+

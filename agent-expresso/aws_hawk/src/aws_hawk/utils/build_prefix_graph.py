@@ -92,11 +92,13 @@ def build_prefix_graph(bucket_name: str) -> Dict[str, Any]:
         root['extension_counts'] = get_extension_counts(all_objects)
         root['LastModified'] = max(obj['LastModified'] for obj in all_objects).isoformat()
     
+    
     return root
 
 # Example usage
 if __name__ == "__main__":
-    bucket_name = 'cpm-selected-customers-logs-output-iad-local-621947758064'
+    bucket_name = 'skyline-subhmx-iad'
+    # bucket_name = 'cpm-selected-customers-logs-output-iad-local-621947758064'
     graph = build_prefix_graph(bucket_name)
     print(graph)
 
