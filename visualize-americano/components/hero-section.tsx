@@ -1,16 +1,26 @@
+"use client";
 import React from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
 import { TextEffect } from "@/components/ui/text-effect";
 import { AnimatedGroup } from "@/components/ui/animated-group";
 import { HeroHeader } from "@/components/hero5-header";
+import { joinWaitlist } from "@/app/actions";
+import { Alert } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { WaitListDialog } from "./WaitListDialog";
 
-
-
-export const VIEW_ANALYSIS_LINK = "/analysis"
-export const HIRE_ON_MASUMI_LINK = "https://www.masumi.network/"
+export const VIEW_ANALYSIS_LINK = "/analysis";
+export const HIRE_ON_MASUMI_LINK = "https://www.masumi.network/";
 
 const transitionVariants = {
   item: {
@@ -33,6 +43,28 @@ const transitionVariants = {
 };
 
 export default function HeroSection() {
+  const [status, setStatus] = React.useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = React.useState(false);
+
+  async function handleSubmit(formData: FormData) {
+    const result = await joinWaitlist(formData);
+    if (result.error) {
+      setStatus({ type: "error", message: result.error });
+    } else {
+      setStatus({
+        type: "success",
+        message: "Successfully joined the waitlist! 🚀",
+      });
+      setTimeout(() => {
+        setIsDialogOpen(false);
+        setStatus(null);
+      }, 2000);
+    }
+  }
+
   return (
     <>
       <HeroHeader />
@@ -162,6 +194,7 @@ export default function HeroSection() {
                     />
                   </div>
                 </AnimatedGroup>
+
                 <AnimatedGroup
                   variants={{
                     container: {
@@ -176,32 +209,35 @@ export default function HeroSection() {
                   }}
                   className="mt-12 flex flex-col items-center justify-center gap-2 md:flex-row"
                 >
-                  <div
-                    key={1}
-                    className="bg-foreground/10 rounded-[calc(var(--radius-xl)+0.125rem)] border p-0.5"
-                  >
+                  <div className="flex gap-4 justify-center">
                     <Button
+                      onClick={() => setIsDialogOpen(true)}
+                      size="lg"
+                      className="rounded-xl px-8 cursor-pointer"
+                    >
+                      Join Waitlist
+                    </Button>
+
+                    <Button
+                      key={2}
                       asChild
                       size="lg"
-                      className="rounded-xl px-5 text-base"
+                      variant="secondary"
+                      className="h-10.5 rounded-xl px-5"
                     >
-                      <Link href={HIRE_ON_MASUMI_LINK}>
-                        <span className="text-nowrap">Hire on Masumi</span>
+                      <Link href={VIEW_ANALYSIS_LINK}>
+                        <span className="text-nowrap">View Analysis</span>
                       </Link>
                     </Button>
                   </div>
-                  <Button
-                    key={2}
-                    asChild
-                    size="lg"
-                    variant="ghost"
-                    className="h-10.5 rounded-xl px-5"
-                  >
-                    <Link href={VIEW_ANALYSIS_LINK}>
-                      <span className="text-nowrap">View Analysis</span>
-                    </Link>
-                  </Button>
                 </AnimatedGroup>
+
+                <WaitListDialog
+                  isDialogOpen={isDialogOpen}
+                  setIsDialogOpen={setIsDialogOpen}
+                  handleSubmit={handleSubmit}
+                  status={status}
+                />
               </div>
             </div>
 
@@ -236,7 +272,6 @@ export default function HeroSection() {
             </AnimatedGroup>
           </div>
         </section>
-   
       </main>
     </>
   );
