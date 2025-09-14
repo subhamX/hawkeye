@@ -165,15 +165,12 @@ export type S3ServiceConfig = {
 };
 
 export type EC2ServiceConfig = {
-  monitoredRegions: string[];
   rightsizingEnabled: boolean;
   reservedInstanceRecommendations: boolean;
   spotInstanceRecommendations: boolean;
-  instanceTypes: string[]; // Filter by instance types
 };
 
 export type EBSServiceConfig = {
-  monitoredRegions: string[];
   unusedVolumeDetection: boolean;
   volumeTypeOptimization: boolean;
   snapshotCleanup: boolean;

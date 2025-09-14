@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS "account" (
+CREATE TABLE "account" (
 	"userId" text NOT NULL,
 	"type" text NOT NULL,
 	"provider" text NOT NULL,
@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS "account" (
 	CONSTRAINT "account_provider_providerAccountId_pk" PRIMARY KEY("provider","providerAccountId")
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "analysis_run" (
+CREATE TABLE "analysis_run" (
 	"id" text PRIMARY KEY NOT NULL,
 	"accountId" text NOT NULL,
 	"status" text DEFAULT 'pending' NOT NULL,
@@ -24,18 +24,18 @@ CREATE TABLE IF NOT EXISTS "analysis_run" (
 	"ec2ResultsId" text
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "aws_account" (
+CREATE TABLE "aws_account" (
 	"id" text PRIMARY KEY NOT NULL,
 	"userId" text NOT NULL,
 	"accountId" text NOT NULL,
 	"roleArn" text NOT NULL,
-	"region" text DEFAULT 'us-east-1' NOT NULL,
+	"regions" jsonb DEFAULT '["us-east-1"]'::jsonb NOT NULL,
 	"isActive" boolean DEFAULT true NOT NULL,
 	"createdAt" timestamp DEFAULT now() NOT NULL,
 	"updatedAt" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "ec2_analysis_result" (
+CREATE TABLE "ec2_analysis_result" (
 	"id" text PRIMARY KEY NOT NULL,
 	"analysisRunId" text NOT NULL,
 	"totalInstances" integer,
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS "ec2_analysis_result" (
 	"createdAt" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "job_queue" (
+CREATE TABLE "job_queue" (
 	"id" text PRIMARY KEY NOT NULL,
 	"type" text NOT NULL,
 	"status" text DEFAULT 'pending' NOT NULL,
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS "job_queue" (
 	"scheduledFor" timestamp
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "s3_analysis_result" (
+CREATE TABLE "s3_analysis_result" (
 	"id" text PRIMARY KEY NOT NULL,
 	"analysisRunId" text NOT NULL,
 	"totalStorageGB" numeric(15, 2),
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS "s3_analysis_result" (
 	"createdAt" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "s3_bucket_config" (
+CREATE TABLE "s3_bucket_config" (
 	"id" text PRIMARY KEY NOT NULL,
 	"accountId" text NOT NULL,
 	"bucketName" text NOT NULL,
@@ -80,13 +80,23 @@ CREATE TABLE IF NOT EXISTS "s3_bucket_config" (
 	"updatedAt" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "session" (
+CREATE TABLE "service_configuration" (
+	"id" text PRIMARY KEY NOT NULL,
+	"accountId" text NOT NULL,
+	"serviceType" text NOT NULL,
+	"isEnabled" boolean DEFAULT true NOT NULL,
+	"configuration" jsonb,
+	"createdAt" timestamp DEFAULT now() NOT NULL,
+	"updatedAt" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "session" (
 	"sessionToken" text PRIMARY KEY NOT NULL,
 	"userId" text NOT NULL,
 	"expires" timestamp NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "user" (
+CREATE TABLE "user" (
 	"id" text PRIMARY KEY NOT NULL,
 	"name" text,
 	"email" text,
@@ -95,51 +105,18 @@ CREATE TABLE IF NOT EXISTS "user" (
 	CONSTRAINT "user_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
-CREATE TABLE IF NOT EXISTS "verificationToken" (
+CREATE TABLE "verificationToken" (
 	"identifier" text NOT NULL,
 	"token" text NOT NULL,
 	"expires" timestamp NOT NULL,
 	CONSTRAINT "verificationToken_identifier_token_pk" PRIMARY KEY("identifier","token")
 );
 --> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "account" ADD CONSTRAINT "account_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "user"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "analysis_run" ADD CONSTRAINT "analysis_run_accountId_aws_account_id_fk" FOREIGN KEY ("accountId") REFERENCES "aws_account"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "aws_account" ADD CONSTRAINT "aws_account_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "user"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "ec2_analysis_result" ADD CONSTRAINT "ec2_analysis_result_analysisRunId_analysis_run_id_fk" FOREIGN KEY ("analysisRunId") REFERENCES "analysis_run"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "s3_analysis_result" ADD CONSTRAINT "s3_analysis_result_analysisRunId_analysis_run_id_fk" FOREIGN KEY ("analysisRunId") REFERENCES "analysis_run"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "s3_bucket_config" ADD CONSTRAINT "s3_bucket_config_accountId_aws_account_id_fk" FOREIGN KEY ("accountId") REFERENCES "aws_account"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
---> statement-breakpoint
-DO $$ BEGIN
- ALTER TABLE "session" ADD CONSTRAINT "session_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "user"("id") ON DELETE cascade ON UPDATE no action;
-EXCEPTION
- WHEN duplicate_object THEN null;
-END $$;
+ALTER TABLE "account" ADD CONSTRAINT "account_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "analysis_run" ADD CONSTRAINT "analysis_run_accountId_aws_account_id_fk" FOREIGN KEY ("accountId") REFERENCES "public"."aws_account"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "aws_account" ADD CONSTRAINT "aws_account_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "ec2_analysis_result" ADD CONSTRAINT "ec2_analysis_result_analysisRunId_analysis_run_id_fk" FOREIGN KEY ("analysisRunId") REFERENCES "public"."analysis_run"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "s3_analysis_result" ADD CONSTRAINT "s3_analysis_result_analysisRunId_analysis_run_id_fk" FOREIGN KEY ("analysisRunId") REFERENCES "public"."analysis_run"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "s3_bucket_config" ADD CONSTRAINT "s3_bucket_config_accountId_aws_account_id_fk" FOREIGN KEY ("accountId") REFERENCES "public"."aws_account"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "service_configuration" ADD CONSTRAINT "service_configuration_accountId_aws_account_id_fk" FOREIGN KEY ("accountId") REFERENCES "public"."aws_account"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "session" ADD CONSTRAINT "session_userId_user_id_fk" FOREIGN KEY ("userId") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;

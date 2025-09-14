@@ -1,6 +1,5 @@
 import { auth, signOut } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
-import Image from 'next/image';
 
 export default async function UserProfile() {
   const session = await auth();

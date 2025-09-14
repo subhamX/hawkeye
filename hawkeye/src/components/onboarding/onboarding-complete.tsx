@@ -163,7 +163,7 @@ export default function OnboardingComplete({ onboardingData, onFinish }: Onboard
             </CardHeader>
             <CardContent className="pt-0">
               <p className="text-sm text-muted-foreground">
-                Monitoring {onboardingData.ec2Config.monitoredRegions.length} regions for instance optimization
+                Instance optimization enabled for all configured regions
               </p>
             </CardContent>
           </Card>
@@ -180,7 +180,7 @@ export default function OnboardingComplete({ onboardingData, onFinish }: Onboard
             </CardHeader>
             <CardContent className="pt-0">
               <p className="text-sm text-muted-foreground">
-                Monitoring {onboardingData.ebsConfig.monitoredRegions.length} regions for volume optimization
+                Volume optimization enabled for all configured regions
               </p>
             </CardContent>
           </Card>

@@ -1,10 +1,9 @@
 import NextAuth, { type NextAuthConfig } from 'next-auth';
 import Google from 'next-auth/providers/google';
-import { DrizzleAdapter } from '@auth/drizzle-adapter';
 import { db } from './db';
+import { users } from '../../drizzle-db/schema';
 
 const config: NextAuthConfig = {
-  adapter: DrizzleAdapter(db),
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -16,9 +15,26 @@ const config: NextAuthConfig = {
     error: '/auth/error',
   },
   callbacks: {
-    async session({ session, user }) {
-      if (session.user) {
-        session.user.id = user.id;
+    async signIn({ user, account, profile }) {
+      // Insert user into database on first sign-in
+      if (user.id && user.email) {
+        try {
+          await db.insert(users).values({
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            image: user.image,
+          }).onConflictDoNothing(); // Don't insert if user already exists
+        } catch (error) {
+          console.error('Failed to create user record:', error);
+          // Don't block sign-in if database insert fails
+        }
+      }
+      return true;
+    },
+    async session({ session, token }) {
+      if (session.user && token.sub) {
+        session.user.id = token.sub;
       }
       return session;
     },
@@ -30,7 +46,7 @@ const config: NextAuthConfig = {
     },
   },
   session: {
-    strategy: 'database',
+    strategy: 'jwt',
   },
 };
 

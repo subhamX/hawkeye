@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -19,7 +18,6 @@ interface EBSOnboardingProps {
 
 export interface EBSOnboardingConfig {
   enabled: boolean;
-  monitoredRegions: string[];
   unusedVolumeDetection: boolean;
   volumeTypeOptimization: boolean;
   snapshotCleanup: boolean;
@@ -28,32 +26,17 @@ export interface EBSOnboardingConfig {
 
 export default function EBSOnboarding({ awsAccount, onNext, onBack }: EBSOnboardingProps) {
   const [enabled, setEnabled] = useState(true);
-  const [monitoredRegions, setMonitoredRegions] = useState<Set<string>>(
-    new Set(awsAccount.regions)
-  );
+
   const [unusedVolumeDetection, setUnusedVolumeDetection] = useState(true);
   const [volumeTypeOptimization, setVolumeTypeOptimization] = useState(true);
   const [snapshotCleanup, setSnapshotCleanup] = useState(true);
   const [minimumVolumeSize, setMinimumVolumeSize] = useState(1);
 
-  const handleRegionToggle = (regionValue: string, selected: boolean) => {
-    const newSelected = new Set(monitoredRegions);
-    if (selected) {
-      newSelected.add(regionValue);
-    } else {
-      newSelected.delete(regionValue);
-    }
-    setMonitoredRegions(newSelected);
-  };
 
-  const handleSelectAllRegions = () => {
-    setMonitoredRegions(new Set(awsAccount.regions));
-  };
 
   const handleNext = () => {
     const config: EBSOnboardingConfig = {
       enabled,
-      monitoredRegions: enabled ? Array.from(monitoredRegions) : [],
       unusedVolumeDetection: enabled ? unusedVolumeDetection : false,
       volumeTypeOptimization: enabled ? volumeTypeOptimization : false,
       snapshotCleanup: enabled ? snapshotCleanup : false,
@@ -182,34 +165,26 @@ export default function EBSOnboarding({ awsAccount, onNext, onBack }: EBSOnboard
                 </p>
               </div>
 
-              {/* Monitored Regions */}
+              {/* Monitored Regions Info */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium">Monitored Regions ({monitoredRegions.size})</h4>
-                  <Button variant="outline" size="sm" onClick={handleSelectAllRegions}>
-                    Select All Account Regions
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-32 overflow-y-auto border rounded-lg p-3">
-                  {awsAccount.regions.map((regionValue) => {
-                    const region = AWS_REGIONS.find(r => r.value === regionValue);
-                    return (
-                      <div
-                        key={regionValue}
-                        className="flex items-center space-x-2 p-1"
-                      >
-                        <Checkbox
-                          checked={monitoredRegions.has(regionValue)}
-                          onCheckedChange={(checked) => 
-                            handleRegionToggle(regionValue, checked as boolean)
-                          }
-                        />
-                        <span className="text-sm truncate">
+                <h4 className="font-medium">Monitored Regions ({awsAccount.regions.length})</h4>
+                <div className="bg-muted/50 rounded-lg p-3">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    EBS monitoring will be enabled for all regions configured in your AWS account:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {awsAccount.regions.map((regionValue) => {
+                      const region = AWS_REGIONS.find(r => r.value === regionValue);
+                      return (
+                        <span
+                          key={regionValue}
+                          className="inline-flex items-center px-2 py-1 rounded-md bg-primary/10 text-primary text-xs font-medium"
+                        >
                           {region?.label || regionValue}
                         </span>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </CardContent>

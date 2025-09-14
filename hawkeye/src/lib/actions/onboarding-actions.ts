@@ -3,7 +3,6 @@
 import { auth } from '@/lib/auth';
 import { awsAccountService } from '@/lib/db/aws-accounts';
 import { serviceConfigurationService } from '@/lib/db/service-configurations';
-import { redirect } from 'next/navigation';
 import type { 
   S3ServiceConfig, 
   EC2ServiceConfig, 
@@ -26,15 +25,12 @@ interface OnboardingData {
   };
   ec2Config?: {
     enabled: boolean;
-    monitoredRegions: string[];
     rightsizingEnabled: boolean;
     reservedInstanceRecommendations: boolean;
     spotInstanceRecommendations: boolean;
-    instanceTypes: string[];
   };
   ebsConfig?: {
     enabled: boolean;
-    monitoredRegions: string[];
     unusedVolumeDetection: boolean;
     volumeTypeOptimization: boolean;
     snapshotCleanup: boolean;
@@ -64,7 +60,7 @@ export async function completeOnboarding(onboardingData: OnboardingData) {
   }
 
   try {
-    // Create AWS account record
+    // Create AWS account record (user should already exist from sign-in callback)
     const account = await awsAccountService.createAWSAccount({
       userId: session.user.id,
       accountId: awsAccount.accountId,
@@ -117,11 +113,9 @@ export async function completeOnboarding(onboardingData: OnboardingData) {
     // EC2 Configuration
     if (ec2Config) {
       const ec2ServiceConfig: EC2ServiceConfig = {
-        monitoredRegions: ec2Config.monitoredRegions,
         rightsizingEnabled: ec2Config.rightsizingEnabled,
         reservedInstanceRecommendations: ec2Config.reservedInstanceRecommendations,
         spotInstanceRecommendations: ec2Config.spotInstanceRecommendations,
-        instanceTypes: ec2Config.instanceTypes,
       };
 
       const ec2ConfigRecord = await serviceConfigurationService.createServiceConfiguration({
@@ -136,7 +130,6 @@ export async function completeOnboarding(onboardingData: OnboardingData) {
     // EBS Configuration
     if (ebsConfig) {
       const ebsServiceConfig: EBSServiceConfig = {
-        monitoredRegions: ebsConfig.monitoredRegions,
         unusedVolumeDetection: ebsConfig.unusedVolumeDetection,
         volumeTypeOptimization: ebsConfig.volumeTypeOptimization,
         snapshotCleanup: ebsConfig.snapshotCleanup,

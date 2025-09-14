@@ -1,10 +1,10 @@
 {
-  "id": "88141e22-536f-462c-a48b-a7ce86969521",
+  "id": "45f76295-b92f-45d2-b46d-15ebf6ea0a2b",
   "prevId": "00000000-0000-0000-0000-000000000000",
-  "version": "5",
-  "dialect": "pg",
+  "version": "7",
+  "dialect": "postgresql",
   "tables": {
-    "account": {
+    "public.account": {
       "name": "account",
       "schema": "",
       "columns": {
@@ -100,9 +100,12 @@
           ]
         }
       },
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "analysis_run": {
+    "public.analysis_run": {
       "name": "analysis_run",
       "schema": "",
       "columns": {
@@ -174,9 +177,12 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "aws_account": {
+    "public.aws_account": {
       "name": "aws_account",
       "schema": "",
       "columns": {
@@ -204,12 +210,12 @@
           "primaryKey": false,
           "notNull": true
         },
-        "region": {
-          "name": "region",
-          "type": "text",
+        "regions": {
+          "name": "regions",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
-          "default": "'us-east-1'"
+          "default": "'[\"us-east-1\"]'::jsonb"
         },
         "isActive": {
           "name": "isActive",
@@ -250,9 +256,12 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "ec2_analysis_result": {
+    "public.ec2_analysis_result": {
       "name": "ec2_analysis_result",
       "schema": "",
       "columns": {
@@ -317,9 +326,12 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "job_queue": {
+    "public.job_queue": {
       "name": "job_queue",
       "schema": "",
       "columns": {
@@ -398,9 +410,12 @@
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "s3_analysis_result": {
+    "public.s3_analysis_result": {
       "name": "s3_analysis_result",
       "schema": "",
       "columns": {
@@ -459,9 +474,12 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "s3_bucket_config": {
+    "public.s3_bucket_config": {
       "name": "s3_bucket_config",
       "schema": "",
       "columns": {
@@ -541,9 +559,84 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "session": {
+    "public.service_configuration": {
+      "name": "service_configuration",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "accountId": {
+          "name": "accountId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "serviceType": {
+          "name": "serviceType",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "isEnabled": {
+          "name": "isEnabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "configuration": {
+          "name": "configuration",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "service_configuration_accountId_aws_account_id_fk": {
+          "name": "service_configuration_accountId_aws_account_id_fk",
+          "tableFrom": "service_configuration",
+          "tableTo": "aws_account",
+          "columnsFrom": [
+            "accountId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.session": {
       "name": "session",
       "schema": "",
       "columns": {
@@ -583,9 +676,12 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "user": {
+    "public.user": {
       "name": "user",
       "schema": "",
       "columns": {
@@ -631,9 +727,12 @@
             "email"
           ]
         }
-      }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     },
-    "verificationToken": {
+    "public.verificationToken": {
       "name": "verificationToken",
       "schema": "",
       "columns": {
@@ -667,11 +766,18 @@
           ]
         }
       },
-      "uniqueConstraints": {}
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     }
   },
   "enums": {},
   "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
   "_meta": {
     "columns": {},
     "schemas": {},
