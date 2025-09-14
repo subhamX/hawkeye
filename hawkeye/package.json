@@ -13,7 +13,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db": "drizzle-kit generate && drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "analyze": "bun run scripts/analyse-heimdall.ts",
+    "analyze:watch": "bun run --watch scripts/analyse-heimdall.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^1.0.0",

@@ -105,3 +105,76 @@ export async function getAnalysisStatus(runId: string) {
     return null;
   }
 }
+
+export async function updateAccountConfig(
+  accountId: string, 
+  config: {
+    roleArn: string;
+    regions: string[];
+    enabledServices: {
+      s3: boolean;
+      ec2: boolean;
+      ebs: boolean;
+      cloudformation: boolean;
+    };
+    isActive: boolean;
+  }
+) {
+  const session = await auth();
+  
+  if (!session?.user?.id) {
+    redirect('/auth/signin');
+  }
+
+  try {
+    // Verify the account belongs to the user
+    const [account] = await db
+      .select()
+      .from(awsAccounts)
+      .where(and(
+        eq(awsAccounts.id, accountId),
+        eq(awsAccounts.userId, session.user.id)
+      ));
+
+    if (!account) {
+      throw new Error('Account not found or access denied');
+    }
+
+    // Update account configuration
+    await db
+      .update(awsAccounts)
+      .set({
+        roleArn: config.roleArn,
+        regions: config.regions,
+        isActive: config.isActive,
+      })
+      .where(eq(awsAccounts.id, accountId));
+
+    // Update service configurations
+    const { serviceConfigurationService } = await import('@/lib/db/service-configurations');
+    
+    for (const [service, enabled] of Object.entries(config.enabledServices)) {
+      await serviceConfigurationService.updateServiceConfiguration(
+        accountId,
+        service as any,
+        { isEnabled: enabled }
+      );
+    }
+
+    // Revalidate the dashboard pages
+    revalidatePath('/dashboard');
+    revalidatePath(`/dashboard/account/${accountId}`);
+
+    return { 
+      success: true, 
+      message: 'Account configuration updated successfully' 
+    };
+
+  } catch (error) {
+    console.error('Failed to update account config:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to update configuration' 
+    };
+  }
+}
