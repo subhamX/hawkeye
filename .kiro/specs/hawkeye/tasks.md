@@ -36,7 +36,7 @@
   - Add authentication protection for protected routes
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
-- [ ] 5. Create basic UI layout and navigation
+- [x] 5. Create basic UI layout and navigation
 
   - Implement main layout component with navigation
   - Create protected route wrapper component
@@ -101,7 +101,7 @@
   - Use Server Actions for EC2 analysis operations instead of API endpoints
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6_
 
-- [ ] 12. Create dashboard with categorized analysis results display
+- [x] 12. Create dashboard with categorized analysis results display
 
   - Build main dashboard page using React Server Components with metrics cards
   - Implement recommendations list categorized by cost, security, and general suggestions
