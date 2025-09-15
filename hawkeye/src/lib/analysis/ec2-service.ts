@@ -117,24 +117,110 @@ export class EC2AnalysisService {
     // Get CloudWatch metrics for instances (simplified)
     const instanceMetrics = await this.getInstanceMetrics(instances);
     
-    const prompt = `Analyze the EC2 infrastructure for security, performance, and cost optimization.
-- Check instance type, state, security groups, and attached EBS volumes.
-- Identify unattached EBS volumes, overprovisioned instances, etc.
-- Provide actionable recommendations.
-- Adhere strictly to the EC2InstanceAnalysisSchema for the output JSON.
+    // Calculate current costs
+    const totalInstanceCost = instances
+      .filter(i => i.state === 'running')
+      .reduce((sum, i) => sum + this.calculateInstanceMonthlyCost(i.instanceType), 0);
+    
+    const totalVolumeCost = volumes
+      .reduce((sum, v) => sum + this.calculateVolumeMonthlyCost(v.volumeType, v.size || 0), 0);
+    
+    const unattachedVolumeCost = volumes
+      .filter(v => !v.attachments || v.attachments.length === 0)
+      .reduce((sum, v) => sum + this.calculateVolumeMonthlyCost(v.volumeType, v.size || 0), 0);
 
-1. **executiveSummary**: Write a 2-4 paragraph executive summary about the EC2 health.
-2. **overallStatistics**: Calculate aggregate stats: total instances, volumes, findings by priority/category.
-3. **strategicRecommendations**: Formulate 2-4 high-level strategic recommendations.
-- Keep the recommendations short and concise.
-- Give actionable recommendations, and keep them short and concise.
-- Don't give generic recommendations. Give specific recommendations backed by data. Like X%/Y of objects should be done ZZ etc.
+    // Calculate GP2 to GP3 migration savings
+    const gp2Volumes = volumes.filter(v => v.volumeType === 'gp2');
+    const gp2ToGp3Savings = gp2Volumes
+      .reduce((sum, v) => {
+        const currentCost = this.calculateVolumeMonthlyCost('gp2', v.size || 0);
+        const newCost = this.calculateVolumeMonthlyCost('gp3', v.size || 0);
+        return sum + (currentCost - newCost);
+      }, 0);
+    
+    // Calculate right-sizing opportunities
+    const rightSizingOpportunities = instances
+      .filter(i => i.state === 'running' && instanceMetrics[i.instanceId])
+      .map(i => ({
+        instanceId: i.instanceId,
+        instanceType: i.instanceType,
+        avgCPU: instanceMetrics[i.instanceId].avgCPUUtilization,
+        rightSizing: this.suggestRightSizing(i.instanceType, instanceMetrics[i.instanceId].avgCPUUtilization)
+      }))
+      .filter(i => i.rightSizing);
+
+    const totalRightSizingSavings = rightSizingOpportunities
+      .reduce((sum, opp) => sum + (opp.rightSizing?.savings || 0), 0);
+
+    // Calculate Reserved Instance opportunities
+    const longRunningInstances = instances.filter(i => i.state === 'running');
+    const totalReservedInstanceSavings = longRunningInstances
+      .reduce((sum, i) => sum + this.calculateReservedInstanceSavings(i.instanceType), 0);
+
+    console.log(`💰 Current monthly costs: Instances $${totalInstanceCost.toFixed(2)}, Volumes $${totalVolumeCost.toFixed(2)}`);
+    console.log(`💸 Unattached volume waste: $${unattachedVolumeCost.toFixed(2)}/month`);
+    console.log(`📉 Right-sizing potential: $${totalRightSizingSavings.toFixed(2)}/month`);
+    console.log(`🏦 Reserved Instance potential: $${totalReservedInstanceSavings.toFixed(2)}/month`);
+    console.log(`💾 GP2→GP3 migration savings: $${gp2ToGp3Savings.toFixed(2)}/month`);
+    
+    const prompt = `You are a senior AWS cost optimization consultant with 10+ years of experience. Analyze the EC2/EBS infrastructure and provide aggressive, high-confidence cost optimization recommendations with immediate financial impact.
+
+CRITICAL COST ANALYSIS DATA:
+- Total EC2 Instances: ${instances.length}
+- Total EBS Volumes: ${volumes.length}
+- Running Instances: ${instances.filter(i => i.state === 'running').length} (Monthly Cost: $${totalInstanceCost.toFixed(2)})
+- Stopped Instances: ${instances.filter(i => i.state === 'stopped').length}
+- Total EBS Volume Cost: $${totalVolumeCost.toFixed(2)}/month
+- Unattached Volumes: ${volumes.filter(v => !v.attachments || v.attachments.length === 0).length} (WASTING $${unattachedVolumeCost.toFixed(2)}/month)
+
+DETAILED INFRASTRUCTURE ANALYSIS:
+- Instance Types: ${JSON.stringify([...new Set(instances.map(i => i.instanceType))], null, 2)}
+- Volume Types: ${JSON.stringify([...new Set(volumes.map(v => v.volumeType))], null, 2)}
+- Total EBS Storage: ${volumes.reduce((sum, v) => sum + (v.size || 0), 0)} GB
+- GP2 Volumes (can migrate to GP3): ${gp2Volumes.length} volumes (${gp2Volumes.reduce((sum, v) => sum + (v.size || 0), 0)} GB)
+- Security Groups: ${securityGroups.length} configured
+
+PERFORMANCE METRICS (HIGH CONFIDENCE DATA):
+${JSON.stringify(instanceMetrics, null, 2)}
+
+RIGHT-SIZING ANALYSIS:
+${JSON.stringify(rightSizingOpportunities, null, 2)}
+
+COST OPTIMIZATION OPPORTUNITIES:
+1. **Unattached EBS Volumes**: ${volumes.filter(v => !v.attachments || v.attachments.length === 0).length} volumes wasting $${unattachedVolumeCost.toFixed(2)}/month
+2. **Right-sizing Opportunities**: ${rightSizingOpportunities.length} instances can be downsized (SAVE $${totalRightSizingSavings.toFixed(2)}/month)
+3. **Reserved Instance Savings**: ${longRunningInstances.length} running instances (SAVE $${totalReservedInstanceSavings.toFixed(2)}/month with 1-year RI)
+4. **Stopped Instances**: ${instances.filter(i => i.state === 'stopped').length} instances still incurring EBS costs
+5. **Volume Type Optimization**: ${gp2Volumes.length} GP2 volumes can migrate to GP3 (SAVE $${gp2ToGp3Savings.toFixed(2)}/month)
+6. **Total Monthly Savings Potential**: $${(unattachedVolumeCost + totalRightSizingSavings + gp2ToGp3Savings).toFixed(2)} in immediate savings available
+
+INSTRUCTIONS FOR HIGH-IMPACT RECOMMENDATIONS:
+1. Be AGGRESSIVE with cost savings estimates - use real AWS pricing data provided above
+2. Prioritize HIGH impact recommendations (>$100/month savings)
+3. Use MEDIUM impact for $25-100/month savings  
+4. Only use LOW impact for <$25/month savings
+5. Calculate MONTHLY savings for immediate impact (not annual)
+6. Focus on the biggest opportunities first:
+   - Unattached EBS volumes (immediate deletion = instant savings)
+   - Right-sizing underutilized instances (CPU < 25%)
+   - Reserved Instances for long-running workloads (60-75% savings)
+   - GP2 → GP3 volume migrations (20% savings + better performance)
+7. Provide specific dollar amounts in potentialSavings (monthly values)
+8. Be confident and specific - this is real infrastructure data with actual costs
+9. For instanceRecommendations: focus on right-sizing and Reserved Instances
+10. For volumeRecommendations: focus on unattached volumes and type optimization
+11. IMPORTANT: Include confidence scores (0.0-1.0) for each recommendation:
+    - 0.95+ for unattached volumes (definitive waste)
+    - 0.90+ for clear right-sizing opportunities (CPU < 10%)
+    - 0.85+ for moderate right-sizing (CPU < 25%)
+    - 0.80+ for Reserved Instance recommendations (long-running instances)
+
+Generate recommendations that will save significant money immediately. Every recommendation should have a clear monthly dollar impact and high confidence score.
 
 Infrastructure Data:
-Instances (${instances.length}): ${JSON.stringify(instances.slice(0, 10), null, 2)}
-Volumes (${volumes.length}): ${JSON.stringify(volumes.slice(0, 10), null, 2)}
-Security Groups (${securityGroups.length}): ${JSON.stringify(securityGroups.slice(0, 5), null, 2)}
-Metrics: ${JSON.stringify(instanceMetrics, null, 2)}`;
+Instances: ${JSON.stringify(instances.slice(0, 10), null, 2)}
+Volumes: ${JSON.stringify(volumes.slice(0, 10), null, 2)}
+Security Groups: ${JSON.stringify(securityGroups.slice(0, 5), null, 2)}`;
 
     const result = await generateObject({
       model: google('gemini-1.5-pro'),
@@ -143,6 +229,116 @@ Metrics: ${JSON.stringify(instanceMetrics, null, 2)}`;
     });
 
     return result.object;
+  }
+
+  /**
+   * Calculate monthly cost for EC2 instance
+   */
+  private calculateInstanceMonthlyCost(instanceType: string): number {
+    // Simplified pricing for common instance types (us-east-1 on-demand)
+    const pricing: Record<string, number> = {
+      't2.micro': 8.47,
+      't2.small': 16.93,
+      't2.medium': 33.87,
+      't2.large': 67.74,
+      't3.micro': 7.59,
+      't3.small': 15.18,
+      't3.medium': 30.37,
+      't3.large': 60.74,
+      'm5.large': 70.08,
+      'm5.xlarge': 140.16,
+      'm5.2xlarge': 280.32,
+      'c5.large': 62.78,
+      'c5.xlarge': 125.57,
+      'r5.large': 91.98,
+      'r5.xlarge': 183.96,
+    };
+    
+    return pricing[instanceType] || 50; // Default estimate for unknown types
+  }
+
+  /**
+   * Calculate monthly cost for EBS volume
+   */
+  private calculateVolumeMonthlyCost(volumeType: string, sizeGB: number): number {
+    // AWS EBS pricing per GB/month
+    const pricing: Record<string, number> = {
+      'gp2': 0.10,
+      'gp3': 0.08, // 20% cheaper than gp2
+      'io1': 0.125,
+      'io2': 0.125,
+      'st1': 0.045,
+      'sc1': 0.025,
+      'standard': 0.05
+    };
+    
+    const pricePerGB = pricing[volumeType] || 0.10;
+    return sizeGB * pricePerGB;
+  }
+
+  /**
+   * Calculate potential savings from right-sizing instance
+   */
+  private calculateRightSizingSavings(currentType: string, recommendedType: string): number {
+    const currentCost = this.calculateInstanceMonthlyCost(currentType);
+    const newCost = this.calculateInstanceMonthlyCost(recommendedType);
+    return Math.max(0, currentCost - newCost);
+  }
+
+  /**
+   * Suggest right-sizing based on CPU utilization
+   */
+  private suggestRightSizing(instanceType: string, avgCPU: number): { recommendedType: string; savings: number } | null {
+    // Right-sizing logic based on CPU utilization
+    if (avgCPU < 10) {
+      // Very low utilization - downsize significantly
+      const downsizeMap: Record<string, string> = {
+        't3.large': 't3.medium',
+        't3.medium': 't3.small',
+        't3.small': 't3.micro',
+        'm5.xlarge': 'm5.large',
+        'm5.large': 't3.large',
+        'c5.xlarge': 'c5.large',
+        'c5.large': 't3.large',
+        'r5.xlarge': 'r5.large',
+        'r5.large': 'm5.large'
+      };
+      
+      const recommended = downsizeMap[instanceType];
+      if (recommended) {
+        return {
+          recommendedType: recommended,
+          savings: this.calculateRightSizingSavings(instanceType, recommended)
+        };
+      }
+    } else if (avgCPU < 25) {
+      // Low utilization - downsize moderately
+      const downsizeMap: Record<string, string> = {
+        't3.large': 't3.medium',
+        'm5.xlarge': 'm5.large',
+        'c5.xlarge': 'c5.large',
+        'r5.xlarge': 'r5.large'
+      };
+      
+      const recommended = downsizeMap[instanceType];
+      if (recommended) {
+        return {
+          recommendedType: recommended,
+          savings: this.calculateRightSizingSavings(instanceType, recommended)
+        };
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Calculate Reserved Instance savings potential
+   */
+  private calculateReservedInstanceSavings(instanceType: string): number {
+    const onDemandCost = this.calculateInstanceMonthlyCost(instanceType);
+    // Reserved Instances typically save 60-75% for 1-year term
+    return onDemandCost * 0.65; // 65% savings
   }
 
   /**

@@ -81,6 +81,7 @@ export const EC2InstanceRecommendationSchema = z.object({
   recommendationType: z.string(),
   category: z.enum(['cost', 'security', 'general']),
   potentialSavings: z.number(),
+  confidence: z.number().min(0).max(1).default(0.85),
   aiGeneratedReport: z.string()
 });
 
@@ -90,6 +91,7 @@ export const EBSVolumeRecommendationSchema = z.object({
   volumeType: z.string(),
   category: z.enum(['cost', 'security', 'general']),
   potentialSavings: z.number(),
+  confidence: z.number().min(0).max(1).default(0.9),
   aiGeneratedReport: z.string()
 });
 

@@ -206,6 +206,7 @@ export type EC2Recommendation = {
   recommendationType: string;
   category: 'cost' | 'security' | 'general';
   potentialSavings: number;
+  confidence: number;
   aiGeneratedReport: string;
 };
 
@@ -215,6 +216,7 @@ export type EBSRecommendation = {
   volumeType: string;
   category: 'cost' | 'security' | 'general';
   potentialSavings: number;
+  confidence: number;
   aiGeneratedReport: string;
 };
 

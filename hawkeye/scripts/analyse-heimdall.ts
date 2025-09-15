@@ -25,7 +25,7 @@ import type {
   EBSRecommendation,
   BucketSummary
 } from '../drizzle-db/schema';
-import { eq, update } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 // Analysis services
 import { getAWSCredentials, type AWSCredentials } from '../src/lib/analysis/aws-credentials';
@@ -224,17 +224,40 @@ class HeimdallAnalysisEngine {
         const bucketAnalysis = await s3Service.analyzeBucket(bucketConfig.bucketName, bucketConfig.region, artifactsBucket);
 
         // Extract actual metrics from bucket analysis
-        const bucketObjectCount = bucketAnalysis.statistics.totalObjectsProvidedForAnalysis || 0;
-        const bucketSizeBytes = bucketAnalysis.statistics.totalSizeBytes || 0; // Already in bytes
-        
+        const bucketObjectCount = bucketAnalysis.statistics?.totalObjectsProvidedForAnalysis || 0;
+        const bucketSizeBytes = bucketAnalysis.statistics?.totalSizeBytes || 0; // Already in bytes
+
         totalObjectCount += bucketObjectCount;
         totalStorageBytes += bucketSizeBytes;
 
         // Create bucket summary
         const isEmpty = bucketObjectCount === 0;
-        
-        // Storage class breakdown is already in bytes
-        const storageClassesInBytes = bucketAnalysis.statistics.storageClassBreakdown || {};
+
+        // Storage class breakdown is already in bytes - ensure it matches the expected structure
+        const storageClassesInBytes = bucketAnalysis.statistics?.storageClassBreakdown || {};
+
+        // Ensure the structure matches BucketSummary.storageClasses type
+        const validStorageClasses: { [key: string]: { objectCount: number; sizeBytes: number } } = {};
+
+        // Validate and copy the storage class data
+        if (storageClassesInBytes && typeof storageClassesInBytes === 'object') {
+          Object.entries(storageClassesInBytes).forEach(([storageClass, data]) => {
+            if (data && typeof data === 'object' && 'objectCount' in data && 'sizeBytes' in data) {
+              validStorageClasses[storageClass] = {
+                objectCount: Number(data.objectCount) || 0,
+                sizeBytes: Number(data.sizeBytes) || 0
+              };
+            }
+          });
+        }
+
+        // If no valid storage classes found but we have objects, create a default STANDARD entry
+        if (Object.keys(validStorageClasses).length === 0 && bucketObjectCount > 0) {
+          validStorageClasses['STANDARD'] = {
+            objectCount: bucketObjectCount,
+            sizeBytes: bucketSizeBytes
+          };
+        }
 
         bucketSummaries.push({
           bucketName: bucketConfig.bucketName,
@@ -243,8 +266,8 @@ class HeimdallAnalysisEngine {
           totalSizeBytes: bucketSizeBytes,
           isEmpty,
           recommendDeletion: isEmpty,
-          lastModified: bucketAnalysis.statistics.lastModified,
-          storageClasses: storageClassesInBytes
+          lastModified: bucketAnalysis.statistics?.lastModified ? new Date(bucketAnalysis.statistics.lastModified) : undefined,
+          storageClasses: validStorageClasses
         });
 
         // Convert AI analysis to our recommendation format
@@ -265,7 +288,7 @@ class HeimdallAnalysisEngine {
             currentStorageClass: 'STANDARD', // Default, would need more analysis
             recommendedStorageClass: this.extractRecommendedStorageClass(rec.description),
             potentialSavings,
-            confidence: rec.impact === 'High' ? 0.9 : rec.impact === 'Medium' ? 0.7 : 0.5,
+            confidence: rec.impact === 'High' ? 0.95 : rec.impact === 'Medium' ? 0.85 : 0.75,
             category,
             aiGeneratedReport: `${rec.title}: ${rec.description}`
           });
@@ -332,7 +355,7 @@ class HeimdallAnalysisEngine {
 
       } catch (error) {
         console.error(`    ❌ Failed to analyze bucket ${bucketConfig.bucketName}:`, error);
-        
+
         // Still create a summary for failed analysis
         bucketSummaries.push({
           bucketName: bucketConfig.bucketName,
@@ -402,8 +425,8 @@ class HeimdallAnalysisEngine {
       })
       .returning();
 
-    return { 
-      resultId: result.id, 
+    return {
+      resultId: result.id,
       ec2Recommendations: analysis.instanceRecommendations,
       ebsRecommendations: analysis.volumeRecommendations
     };

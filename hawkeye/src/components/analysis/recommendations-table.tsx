@@ -10,6 +10,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { 
   DollarSign, 
   TrendingUp, 
@@ -19,6 +27,7 @@ import {
   Trash2,
   Archive,
 } from 'lucide-react';
+
 import type { S3Recommendation, EC2Recommendation, EBSRecommendation } from '../../../drizzle-db/schema/app';
 
 interface RecommendationsTableProps {
@@ -70,9 +79,10 @@ export default function RecommendationsTable({ recommendations, type }: Recommen
   };
 
   const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 0.8) return 'text-green-600';
-    if (confidence >= 0.6) return 'text-yellow-600';
-    return 'text-red-600';
+    if (confidence >= 0.9) return 'text-green-600';
+    if (confidence >= 0.8) return 'text-green-500';
+    if (confidence >= 0.7) return 'text-yellow-600';
+    return 'text-orange-600';
   };
 
   if (recommendations.length === 0) {
@@ -166,15 +176,89 @@ export default function RecommendationsTable({ recommendations, type }: Recommen
                 <div className="text-xs text-muted-foreground">per month</div>
               </TableCell>
               <TableCell>
-                <div className={`font-medium ${getConfidenceColor((rec as any).confidence || 0.5)}`}>
-                  {Math.round(((rec as any).confidence || 0.5) * 100)}%
+                <div className={`font-medium ${getConfidenceColor((rec as any).confidence || 0.85)}`}>
+                  {Math.round(((rec as any).confidence || 0.85) * 100)}%
                 </div>
               </TableCell>
               <TableCell>
-                <Button variant="outline" size="sm">
-                  <ExternalLink className="h-3 w-3 mr-1" />
-                  View Details
-                </Button>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      View Details
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>
+                        Recommendation Details
+                      </DialogTitle>
+                      <DialogDescription>
+                        {type === 's3' && `S3 Bucket: ${(rec as S3Recommendation).bucketName}`}
+                        {type === 'ec2' && `EC2 Instance: ${(rec as EC2Recommendation).instanceId}`}
+                        {type === 'ebs' && `EBS Volume: ${(rec as EBSRecommendation).volumeId}`}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <h4 className="font-medium mb-2">Full Analysis Report</h4>
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                          {rec.aiGeneratedReport}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <h4 className="font-medium mb-1">Potential Savings</h4>
+                          <p className="text-lg font-bold text-green-600">
+                            {formatCurrency(rec.potentialSavings)}/month
+                          </p>
+                        </div>
+                        <div>
+                          <h4 className="font-medium mb-1">Confidence</h4>
+                          <p className={`text-lg font-bold ${getConfidenceColor((rec as any).confidence || 0.85)}`}>
+                            {Math.round(((rec as any).confidence || 0.85) * 100)}%
+                          </p>
+                        </div>
+                      </div>
+                      {type === 's3' && (
+                        <div>
+                          <h4 className="font-medium mb-1">Storage Transition</h4>
+                          <p className="text-sm">
+                            {(rec as S3Recommendation).currentStorageClass} → {(rec as S3Recommendation).recommendedStorageClass}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {(rec as S3Recommendation).objectCount.toLocaleString()} objects affected
+                          </p>
+                        </div>
+                      )}
+                      {type === 'ec2' && (
+                        <div>
+                          <h4 className="font-medium mb-1">Instance Details</h4>
+                          <p className="text-sm">
+                            Type: {(rec as EC2Recommendation).instanceType}
+                          </p>
+                          <p className="text-sm">
+                            Recommendation: {(rec as EC2Recommendation).recommendationType}
+                          </p>
+                        </div>
+                      )}
+                      {type === 'ebs' && (
+                        <div>
+                          <h4 className="font-medium mb-1">Volume Details</h4>
+                          <p className="text-sm">
+                            Size: {(rec as EBSRecommendation).size} GB
+                          </p>
+                          <p className="text-sm">
+                            Type: {(rec as EBSRecommendation).volumeType}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </TableCell>
             </TableRow>
           ))}

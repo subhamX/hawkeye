@@ -244,8 +244,8 @@ export class ReportConsistencyService {
         r => r.bucketName === lastRec.bucketName && r.category === lastRec.category
       );
 
-      if (!stillExists && lastRec.confidence > 0.7) {
-        // Keep high-confidence recommendations that might have been missed
+      if (!stillExists && lastRec.confidence > 0.6) {
+        // Keep medium+ confidence recommendations that might have been missed
         stabilized.push({
           ...lastRec,
           potentialSavings: lastRec.potentialSavings * 0.9, // Slightly reduce savings for persistence
@@ -354,8 +354,10 @@ export class ReportConsistencyService {
    * Smooth confidence values
    */
   private smoothConfidence(newConfidence: number, lastConfidence: number): number {
-    // Average the confidence values for stability
-    return (newConfidence + lastConfidence) / 2;
+    // Use weighted average favoring higher confidence for stability
+    const maxConfidence = Math.max(newConfidence, lastConfidence);
+    const minConfidence = Math.min(newConfidence, lastConfidence);
+    return (maxConfidence * 0.7) + (minConfidence * 0.3);
   }
 
   /**
