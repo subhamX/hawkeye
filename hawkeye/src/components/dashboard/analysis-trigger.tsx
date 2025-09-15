@@ -81,9 +81,9 @@ export default function AnalysisTrigger({
   const canTrigger = !isRunning && !isPending;
 
   return (
-    <Card>
+    <Card className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/50">
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
+        <CardTitle className="flex items-center justify-between text-slate-900 dark:text-white">
           <span>Analysis Control</span>
           {currentStatus && (
             <Badge variant={getStatusColor(currentStatus) as any}>
@@ -99,19 +99,19 @@ export default function AnalysisTrigger({
         {message && (
           <div className={`p-3 rounded-md text-sm ${
             message.type === 'success' 
-              ? 'bg-green-50 text-green-800 border border-green-200' 
-              : 'bg-red-50 text-red-800 border border-red-200'
+              ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-800' 
+              : 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800'
           }`}>
             {message.text}
           </div>
         )}
 
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
           <div>
-            <p className="font-medium">
+            <p className="font-medium text-slate-900 dark:text-white">
               {isRunning ? 'Analysis in Progress' : 'Ready to Analyze'}
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-slate-600 dark:text-slate-400">
               {isRunning 
                 ? 'Your AWS resources are being analyzed for optimization opportunities'
                 : 'Run a comprehensive analysis of your AWS resources to find cost savings'
@@ -121,7 +121,7 @@ export default function AnalysisTrigger({
           
           <div className="flex items-center space-x-2">
             {isRunning ? (
-              <Button variant="outline" size="sm" disabled>
+              <Button variant="outline" size="sm" disabled className="border-slate-300 dark:border-slate-600">
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Running...
               </Button>
@@ -132,6 +132,7 @@ export default function AnalysisTrigger({
                   size="sm"
                   onClick={() => router.refresh()}
                   disabled={isPending}
+                  className="border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
                 >
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Refresh
@@ -140,6 +141,7 @@ export default function AnalysisTrigger({
                   onClick={handleTriggerAnalysis}
                   disabled={!canTrigger}
                   size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   {isPending ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -154,14 +156,14 @@ export default function AnalysisTrigger({
         </div>
 
         {isRunning && (
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-3">
             <div className="flex items-center space-x-2 mb-2">
-              <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
-              <span className="text-sm font-medium text-blue-800">
+              <Loader2 className="h-4 w-4 text-blue-600 dark:text-blue-400 animate-spin" />
+              <span className="text-sm font-medium text-blue-800 dark:text-blue-300">
                 Analysis Progress
               </span>
             </div>
-            <div className="space-y-1 text-sm text-blue-700">
+            <div className="space-y-1 text-sm text-blue-700 dark:text-blue-300">
               <div className="flex items-center justify-between">
                 <span>• Scanning S3 buckets and storage analytics</span>
                 <span className="text-xs">In progress...</span>

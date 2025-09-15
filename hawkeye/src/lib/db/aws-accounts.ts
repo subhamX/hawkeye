@@ -205,6 +205,8 @@ export class AWSAccountService {
       .where(eq(awsAccounts.userId, userId))
       .limit(1);
 
+    console.log(accounts);
+
     return accounts.length > 0;
   }
 }

@@ -2,6 +2,7 @@ import NextAuth, { type NextAuthConfig } from 'next-auth';
 import Google from 'next-auth/providers/google';
 import { db } from './db';
 import { users } from '../../drizzle-db/schema';
+import { eq } from 'drizzle-orm';
 
 const config: NextAuthConfig = {
   providers: [
@@ -15,16 +16,24 @@ const config: NextAuthConfig = {
     error: '/auth/error',
   },
   callbacks: {
-    async signIn({ user, account, profile }) {
-      // Insert user into database on first sign-in
-      if (user.id && user.email) {
+    async signIn({ user }) {
+      if (user.email) {
         try {
-          await db.insert(users).values({
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            image: user.image,
-          }).onConflictDoNothing(); // Don't insert if user already exists
+          // Check if user exists by email
+          const existingUser = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, user.email))
+            .limit(1);
+
+          if (existingUser.length === 0) {
+            // Create new user with UUID
+            await db.insert(users).values({
+              name: user.name,
+              email: user.email,
+              image: user.image,
+            });
+          }
         } catch (error) {
           console.error('Failed to create user record:', error);
           // Don't block sign-in if database insert fails
@@ -33,14 +42,27 @@ const config: NextAuthConfig = {
       return true;
     },
     async session({ session, token }) {
-      if (session.user && token.sub) {
-        session.user.id = token.sub;
+      if (session.user && token.databaseUserId) {
+        session.user.id = token.databaseUserId as string;
       }
       return session;
     },
     async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
+      // On first sign in, get the database user ID
+      if (user && user.email) {
+        try {
+          const dbUser = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, user.email))
+            .limit(1);
+
+          if (dbUser.length > 0) {
+            token.databaseUserId = dbUser[0].id;
+          }
+        } catch (error) {
+          console.error('Failed to fetch user from database:', error);
+        }
       }
       return token;
     },

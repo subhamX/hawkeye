@@ -1,3 +1,5 @@
+'use server';
+
 import { auth, signOut } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 
@@ -8,6 +10,10 @@ export default async function UserProfile() {
     return null;
   }
 
+  const signOutx = async () => {
+    await signOut({ redirectTo: '/' });
+  };
+
   return (
     <div className="flex items-center space-x-4">
       {session.user.image && (
@@ -17,7 +23,7 @@ export default async function UserProfile() {
           className="rounded-full w-16 h-16"
         />
       )}
-      
+
       <div className="flex flex-col">
         <span className="text-sm font-medium text-foreground">
           {session.user.name}
@@ -27,12 +33,7 @@ export default async function UserProfile() {
         </span>
       </div>
 
-      <form
-        action={async () => {
-          'use server';
-          await signOut({ redirectTo: '/' });
-        }}
-      >
+      <form action={signOutx}>
         <Button variant="outline" size="sm" type="submit">
           Sign Out
         </Button>

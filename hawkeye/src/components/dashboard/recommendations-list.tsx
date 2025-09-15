@@ -108,11 +108,11 @@ export default function RecommendationsList({
 
   if (allRecommendations.length === 0) {
     return (
-      <Card>
+      <Card className="card-modern">
         <CardContent className="py-12 text-center">
-          <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <h3 className="text-lg font-semibold mb-2">No Recommendations Available</h3>
-          <p className="text-muted-foreground">
+          <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted" />
+          <h3 className="text-lg font-semibold mb-2 text-primary">No Recommendations Available</h3>
+          <p className="text-muted">
             Run an analysis to get cost optimization recommendations.
           </p>
         </CardContent>
@@ -129,31 +129,33 @@ export default function RecommendationsList({
         const isExpanded = expandedCategories[category];
 
         return (
-          <Card key={category}>
+          <Card key={category} className="card-modern">
             <CardHeader>
               <div 
-                className="flex items-center justify-between cursor-pointer"
+                className="flex items-center justify-between cursor-pointer hover:bg-muted/30 rounded-lg p-2 -m-2 transition-colors"
                 onClick={() => toggleCategory(category)}
               >
                 <div className="flex items-center space-x-3">
-                  {getCategoryIcon(category)}
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20">
+                    {getCategoryIcon(category)}
+                  </div>
                   <div>
-                    <CardTitle className={`capitalize ${getCategoryColor(category)}`}>
+                    <CardTitle className={`capitalize gradient-text`}>
                       {category} Recommendations
                     </CardTitle>
-                    <p className="text-sm text-muted-foreground">
+                    <p className="text-sm text-muted">
                       {recommendations.length} recommendations • ${totalSavings.toFixed(2)}/month potential savings
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Badge variant="secondary">
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400">
                     {recommendations.length}
                   </Badge>
                   {isExpanded ? (
-                    <ChevronUp className="h-4 w-4" />
+                    <ChevronUp className="h-4 w-4 text-muted" />
                   ) : (
-                    <ChevronDown className="h-4 w-4" />
+                    <ChevronDown className="h-4 w-4 text-muted" />
                   )}
                 </div>
               </div>
@@ -163,18 +165,18 @@ export default function RecommendationsList({
               <CardContent>
                 <div className="space-y-4">
                   {recommendations.map((rec, index) => (
-                    <div key={index} className="border rounded-lg p-4">
+                    <div key={index} className="glass-effect rounded-lg p-4 hover:bg-muted/20 transition-colors">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
                           <div className="flex items-center space-x-2 mb-1">
-                            <Badge variant="outline" className="text-xs">
+                            <Badge variant="outline" className="text-xs bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-400">
                               {rec.type}
                             </Badge>
-                            <h4 className="font-medium">
+                            <h4 className="font-medium text-primary">
                               {getRecommendationTitle(rec)}
                             </h4>
                           </div>
-                          <p className="text-sm text-muted-foreground mb-2">
+                          <p className="text-sm text-muted mb-2">
                             {getRecommendationDescription(rec)}
                           </p>
                         </div>
@@ -182,14 +184,14 @@ export default function RecommendationsList({
                           <p className="font-semibold text-green-600">
                             ${rec.potentialSavings.toFixed(2)}
                           </p>
-                          <p className="text-xs text-muted-foreground">per month</p>
+                          <p className="text-xs text-muted">per month</p>
                         </div>
                       </div>
                       
                       {rec.aiGeneratedReport && (
-                        <div className="bg-muted/50 rounded-md p-3 mt-3">
-                          <h5 className="text-sm font-medium mb-2">AI Analysis</h5>
-                          <p className="text-sm text-muted-foreground">
+                        <div className="bg-gradient-to-r from-blue-50/50 to-purple-50/50 dark:from-blue-950/10 dark:to-purple-950/10 rounded-md p-3 mt-3 border border-blue-100 dark:border-blue-800/30">
+                          <h5 className="text-sm font-medium mb-2 text-primary">AI Analysis</h5>
+                          <p className="text-sm text-muted">
                             {rec.aiGeneratedReport}
                           </p>
                         </div>

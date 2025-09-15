@@ -10,7 +10,7 @@ export default auth((req) => {
     // Check if the current path is a public route
     const isPublicRoute = pathname ==='/' || publicRoutes.some((route) => pathname.startsWith(route));
 
-    console.log(`Auth thingy... isPublicRoute: `, isPublicRoute, req.auth)
+    // console.log(`Auth thingy... isPublicRoute: `, isPublicRoute, req.auth)
     // If user is not authenticated and trying to access a protected route
     if (!req.auth && !isPublicRoute) {
         const signInUrl = new URL('/auth/signin', req.url);
