@@ -1,6 +1,7 @@
 import {
   S3Client,
   ListObjectsV2Command,
+  GetObjectCommand,
   GetBucketVersioningCommand,
   GetBucketEncryptionCommand,
   GetBucketLifecycleConfigurationCommand,
@@ -10,25 +11,50 @@ import {
   GetBucketAnalyticsConfigurationCommand,
   PutBucketInventoryConfigurationCommand,
   GetBucketInventoryConfigurationCommand,
+  GetBucketLocationCommand,
   type BucketLocationConstraint
 } from '@aws-sdk/client-s3';
+import {
+  CloudWatchClient,
+  GetMetricStatisticsCommand,
+  type Datapoint
+} from '@aws-sdk/client-cloudwatch';
 import { generateObject } from 'ai';
 import { google } from '@ai-sdk/google';
 import type { AWSCredentials } from './aws-credentials';
 import { S3BucketAnalysisSchema, type S3BucketAnalysis } from './schemas';
-import type { MonitoredBucket, S3Object, S3BucketConfig } from './types';
+import type {
+  MonitoredBucket,
+  S3BucketConfig,
+  InventoryReport,
+  AgeAnalysisResult,
+  ParquetAnalysisResult,
+  PartitioningAnalysisResult,
+  InventoryObject
+} from './types';
+import { DirectoryAnalysis, LifecyclePolicyRecommendation } from '../../../drizzle-db/schema/app';
 
 export class S3AnalysisService {
   private credentials: AWSCredentials;
   private s3Clients: Map<string, S3Client> = new Map();
+  private cloudWatchClients: Map<string, CloudWatchClient> = new Map();
   private defaultRegion: string;
 
   constructor(credentials: AWSCredentials) {
     this.credentials = credentials;
     this.defaultRegion = credentials.region;
-    
-    // Create default client
+
+    // Create default clients
     this.s3Clients.set(credentials.region, new S3Client({
+      region: credentials.region,
+      credentials: {
+        accessKeyId: credentials.accessKeyId,
+        secretAccessKey: credentials.secretAccessKey,
+        sessionToken: credentials.sessionToken,
+      },
+    }));
+
+    this.cloudWatchClients.set(credentials.region, new CloudWatchClient({
       region: credentials.region,
       credentials: {
         accessKeyId: credentials.accessKeyId,
@@ -56,6 +82,138 @@ export class S3AnalysisService {
   }
 
   /**
+   * Get CloudWatch client for a specific region
+   */
+  private getCloudWatchClient(region: string): CloudWatchClient {
+    if (!this.cloudWatchClients.has(region)) {
+      this.cloudWatchClients.set(region, new CloudWatchClient({
+        region,
+        credentials: {
+          accessKeyId: this.credentials.accessKeyId,
+          secretAccessKey: this.credentials.secretAccessKey,
+          sessionToken: this.credentials.sessionToken,
+        },
+      }));
+    }
+    return this.cloudWatchClients.get(region)!;
+  }
+
+  /**
+   * Get the actual region of a bucket using GetBucketLocation
+   */
+  private async getActualBucketRegion(bucketName: string, assumedRegion: string): Promise<string> {
+    try {
+      // Try the assumed region first
+      const s3Client = this.getS3Client(assumedRegion);
+      const locationResponse = await s3Client.send(new GetBucketLocationCommand({
+        Bucket: bucketName
+      }));
+      
+      // Handle the special case where us-east-1 returns null/undefined
+      const actualRegion = locationResponse.LocationConstraint || 'us-east-1';
+      
+      if (actualRegion !== assumedRegion) {
+        console.log(`    📍 Bucket ${bucketName} actual region: ${actualRegion} (was assuming: ${assumedRegion})`);
+      }
+      
+      return actualRegion;
+    } catch (error) {
+      console.warn(`    ⚠️  Could not determine bucket region for ${bucketName}, using assumed region: ${assumedRegion}`);
+      return assumedRegion;
+    }
+  }
+
+  /**
+   * Get bucket metrics from CloudWatch
+   */
+  private async getBucketMetrics(bucketName: string, bucketRegion: string): Promise<{
+    sizeBytes: number;
+    objectCount: number;
+  }> {
+    // First, get the actual bucket region
+    const actualRegion = await this.getActualBucketRegion(bucketName, bucketRegion);
+    const cloudWatchClient = this.getCloudWatchClient(actualRegion);
+    
+    const endTime = new Date();
+    const startTime = new Date(endTime.getTime() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
+
+    console.log(`    📊 Querying CloudWatch metrics for ${bucketName} in region ${actualRegion}...`);
+    console.log(`    🕐 Time range: ${startTime.toISOString()} to ${endTime.toISOString()}`);
+
+    try {
+      let sizeBytes = 0;
+      let objectCount = 0;
+
+      // Get object count
+      try {
+
+        console.log({
+          Namespace: 'AWS/S3',
+          MetricName: 'NumberOfObjects',
+          Dimensions: [
+            { Name: 'BucketName', Value: bucketName },
+            { Name: 'StorageType', Value: 'AllStorageTypes' }
+          ],
+          StartTime: startTime,
+          EndTime: endTime,
+          Period: 86400, // 1 day
+          Statistics: ['Average'] // Use Average as per AWS CLI example
+        })
+        console.log(`    🔍 Querying NumberOfObjects for ${bucketName}...`);
+        const countResponse = await cloudWatchClient.send(new GetMetricStatisticsCommand({
+          Namespace: 'AWS/S3',
+          MetricName: 'NumberOfObjects',
+          Dimensions: [
+            { Name: 'BucketName', Value: bucketName },
+            { Name: 'StorageType', Value: 'AllStorageTypes' }
+          ],
+          StartTime: startTime,
+          EndTime: endTime,
+          Period: 86400, // 1 day
+          Statistics: ['Average'] // Use Average as per AWS CLI example
+        }));
+
+        console.log(countResponse)
+        console.log(`    🔍 NumberOfObjects response: ${countResponse.Datapoints?.length || 0} datapoints`);
+        if (countResponse.Datapoints && countResponse.Datapoints.length > 0) {
+          console.log(`    📊 Latest object count datapoint:`, countResponse.Datapoints[0]);
+          
+          const latestCountDatapoint = countResponse.Datapoints.sort((a, b) => 
+            (b.Timestamp?.getTime() || 0) - (a.Timestamp?.getTime() || 0)
+          )[0];
+          
+          objectCount = Math.round(latestCountDatapoint?.Average || 0);
+          if (objectCount > 0) {
+            console.log(`    📊 Total objects: ${objectCount.toLocaleString()}`);
+          }
+        } else {
+          console.log(`    ⚠️  No object count data available for ${bucketName}`);
+        }
+      } catch (error) {
+        console.warn(`    ❌ Failed to get object count for ${bucketName}:`, error);
+      }
+
+      // If we still have no data, the bucket might be empty or metrics might not be available yet
+      if (sizeBytes === 0 && objectCount === 0) {
+        console.log(`    ℹ️  No CloudWatch metrics available for ${bucketName}. This could mean:`);
+        console.log(`        - The bucket is empty`);
+        console.log(`        - The bucket was recently created (metrics take 24-48 hours to appear)`);
+        console.log(`        - CloudWatch metrics are not enabled for this bucket`);
+      }
+
+      const totalSizeGB = sizeBytes / (1024 * 1024 * 1024);
+      console.log(`    📊 Final metrics for ${bucketName}: ${totalSizeGB.toFixed(3)} GB, ${objectCount.toLocaleString()} objects`);
+
+      return { sizeBytes, objectCount };
+
+    } catch (error) {
+      console.warn(`    ❌ Failed to get CloudWatch metrics for ${bucketName}:`, error);
+      console.log(`    ℹ️  Falling back to basic analysis without size/count metrics`);
+      return { sizeBytes: 0, objectCount: 0 };
+    }
+  }
+
+  /**
    * Detect the actual region of a bucket when we get PermanentRedirect errors
    */
   private async detectBucketRegion(bucketName: string, errorMessage?: string): Promise<string | null> {
@@ -65,7 +223,7 @@ export class S3AnalysisService {
       if (regionMatch) {
         const extractedRegion = regionMatch[1];
         console.log(`    📍 Extracted region from error: ${extractedRegion}`);
-        
+
         // Verify this region works
         try {
           const client = this.getS3Client(extractedRegion);
@@ -83,7 +241,7 @@ export class S3AnalysisService {
 
     // Fallback: try common AWS regions
     const commonRegions = [
-      'eu-central-1', 'eu-west-1', 'us-east-1', 'us-west-2', 
+      'eu-central-1', 'eu-west-1', 'us-east-1', 'us-west-2',
       'eu-west-2', 'eu-west-3', 'eu-north-1', 'us-east-2', 'us-west-1',
       'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1', 'ap-northeast-2', 'ap-south-1',
       'ca-central-1', 'sa-east-1'
@@ -139,7 +297,7 @@ export class S3AnalysisService {
     // Setup analytics and inventory for each monitored bucket
     for (const bucket of monitoredBuckets) {
       console.log(`    🔧 Setting up bucket: ${bucket.bucketName} (stored region: ${bucket.region})`);
-      
+
       try {
         await this.setupBucketAnalytics(bucket.bucketName, artifactsBucketName, bucket.region);
         await this.setupBucketInventory(bucket.bucketName, artifactsBucketName, bucket.region);
@@ -156,7 +314,7 @@ export class S3AnalysisService {
    */
   private async setupBucketAnalytics(bucketName: string, artifactsBucket: string, bucketRegion: string): Promise<void> {
     const configId = 'hawkeye-sca-v1';
-    
+
     // Get the correct S3 client for this bucket's region
     let s3Client = this.getS3Client(bucketRegion);
     let actualRegion = bucketRegion;
@@ -172,7 +330,7 @@ export class S3AnalysisService {
     } catch (error: unknown) {
       // Handle PermanentRedirect by detecting actual region
       if (error instanceof Error && (
-        error.message.includes('PermanentRedirect') || 
+        error.message.includes('PermanentRedirect') ||
         error.name === 'PermanentRedirect' ||
         (error as any).Code === 'PermanentRedirect'
       )) {
@@ -182,7 +340,7 @@ export class S3AnalysisService {
           console.log(`    📍 Using detected region: ${detectedRegion}`);
           actualRegion = detectedRegion;
           s3Client = this.getS3Client(actualRegion);
-          
+
           // Retry the check with correct region
           try {
             await s3Client.send(new GetBucketAnalyticsConfigurationCommand({
@@ -235,7 +393,7 @@ export class S3AnalysisService {
    */
   private async setupBucketInventory(bucketName: string, artifactsBucket: string, bucketRegion: string): Promise<void> {
     const configId = 'hawkeye-inventory-v1';
-    
+
     // Get the correct S3 client for this bucket's region
     let s3Client = this.getS3Client(bucketRegion);
     let actualRegion = bucketRegion;
@@ -251,7 +409,7 @@ export class S3AnalysisService {
     } catch (error: unknown) {
       // Handle PermanentRedirect by detecting actual region
       if (error instanceof Error && (
-        error.message.includes('PermanentRedirect') || 
+        error.message.includes('PermanentRedirect') ||
         error.name === 'PermanentRedirect' ||
         (error as any).Code === 'PermanentRedirect'
       )) {
@@ -261,7 +419,7 @@ export class S3AnalysisService {
           console.log(`    📍 Using detected region: ${detectedRegion}`);
           actualRegion = detectedRegion;
           s3Client = this.getS3Client(actualRegion);
-          
+
           // Retry the check with correct region
           try {
             await s3Client.send(new GetBucketInventoryConfigurationCommand({
@@ -319,53 +477,484 @@ export class S3AnalysisService {
   }
 
   /**
-   * Analyze a single S3 bucket using AI
+   * Analyze a single S3 bucket using inventory-based approach
    */
-  async analyzeBucket(bucketName: string, bucketRegion: string): Promise<S3BucketAnalysis> {
+  async analyzeBucket(bucketName: string, bucketRegion: string, artifactsBucket: string): Promise<S3BucketAnalysis> {
+    console.log(`    📊 Starting inventory-based analysis for bucket: ${bucketName}`);
+
+    try {
+      // Get the actual bucket region first
+      const actualRegion = await this.getActualBucketRegion(bucketName, bucketRegion);
+      
+      // Get inventory data instead of direct object listing
+      const inventoryData = await this.getInventoryData(bucketName, artifactsBucket, actualRegion);
+
+      // Perform the three specific analyses
+      const ageAnalysis = await this.analyzeObjectAge(inventoryData);
+      const parquetAnalysis = await this.detectParquetFileIssues(inventoryData);
+      const partitioningAnalysis = await this.analyzePartitioningNeeds(inventoryData);
+
+      // Get bucket configuration for security analysis
+      const bucketConfig = await this.getBucketConfiguration(bucketName, actualRegion);
+
+      // Generate comprehensive analysis using AI with inventory insights
+      const analysis = await this.generateComprehensiveAnalysis(
+        bucketName,
+        inventoryData,
+        ageAnalysis,
+        parquetAnalysis,
+        partitioningAnalysis,
+        bucketConfig
+      );
+
+      console.log(`    ✅ Completed analysis for bucket: ${bucketName}`);
+      return analysis;
+
+    } catch (error) {
+      console.log(`    📋 Inventory reports not available for ${bucketName} - performing basic analysis`);
+      console.log(`    ℹ️  Advanced analysis (object age, parquet compaction, partitioning) will be available once inventory reports are generated`);
+
+      // Fallback to basic analysis when inventory is not available
+      return this.performBasicAnalysis(bucketName, bucketRegion);
+    }
+  }
+
+  /**
+   * Get inventory data from S3 inventory reports
+   */
+  private async getInventoryData(bucketName: string, artifactsBucket: string, bucketRegion: string): Promise<InventoryReport> {
+    const s3Client = this.getS3Client(bucketRegion);
+    const inventoryPrefix = `inventory/${bucketName}/`;
+
+    console.log(`    📋 Fetching inventory data from ${artifactsBucket}/${inventoryPrefix}`);
+
+    try {
+      // List inventory files
+      const listResponse = await s3Client.send(new ListObjectsV2Command({
+        Bucket: artifactsBucket,
+        Prefix: inventoryPrefix,
+        MaxKeys: 100
+      }));
+
+      if (!listResponse.Contents || listResponse.Contents.length === 0) {
+        throw new Error(`No inventory reports found for bucket ${bucketName}. Inventory reports are generated daily after being enabled.`);
+      }
+
+      // Find the most recent inventory report
+      const inventoryFiles = listResponse.Contents
+        .filter(obj => obj.Key?.endsWith('.csv') || obj.Key?.endsWith('.parquet'))
+        .sort((a, b) => (b.LastModified?.getTime() || 0) - (a.LastModified?.getTime() || 0));
+
+      if (inventoryFiles.length === 0) {
+        throw new Error(`No valid inventory files found for bucket ${bucketName}. Inventory reports may still be generating.`);
+      }
+
+      const latestInventoryFile = inventoryFiles[0];
+      console.log(`    📄 Processing inventory file: ${latestInventoryFile.Key}`);
+
+      // Download and parse the inventory file
+      const inventoryObjects = await this.parseInventoryFile(artifactsBucket, latestInventoryFile.Key!, bucketRegion);
+
+      return {
+        bucketName,
+        reportDate: latestInventoryFile.LastModified || new Date(),
+        objects: inventoryObjects,
+        totalObjects: inventoryObjects.length,
+        totalSize: inventoryObjects.reduce((sum, obj) => sum + obj.size, 0)
+      };
+
+    } catch (error) {
+      console.error(`    ❌ Failed to get inventory data for ${bucketName}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Parse inventory file (CSV format)
+   */
+  private async parseInventoryFile(artifactsBucket: string, inventoryKey: string, bucketRegion: string): Promise<InventoryObject[]> {
+    const s3Client = this.getS3Client(bucketRegion);
+
+    try {
+      const response = await s3Client.send(new GetObjectCommand({
+        Bucket: artifactsBucket,
+        Key: inventoryKey
+      }));
+
+      if (!response.Body) {
+        throw new Error('Empty inventory file');
+      }
+
+      const csvContent = await response.Body.transformToString();
+      const lines = csvContent.split('\n').filter(line => line.trim());
+
+      // Skip header line if present
+      const dataLines = lines.slice(1);
+      const objects: InventoryObject[] = [];
+
+      for (const line of dataLines) {
+        const columns = line.split(',');
+        if (columns.length >= 4) {
+          objects.push({
+            key: columns[1]?.replace(/"/g, '') || '',
+            lastModified: new Date(columns[2]?.replace(/"/g, '') || ''),
+            size: parseInt(columns[3]?.replace(/"/g, '') || '0'),
+            storageClass: columns[4]?.replace(/"/g, '') || 'STANDARD',
+            etag: columns[5]?.replace(/"/g, ''),
+            isMultipartUploaded: columns[6]?.replace(/"/g, '') === 'true',
+            replicationStatus: columns[7]?.replace(/"/g, ''),
+            encryptionStatus: columns[8]?.replace(/"/g, '')
+          });
+        }
+      }
+
+      console.log(`    📊 Parsed ${objects.length} objects from inventory`);
+      return objects;
+
+    } catch (error) {
+      console.error(`    ❌ Failed to parse inventory file ${inventoryKey}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Algorithm 1: Analyze object age and recommend lifecycle policies
+   */
+  private async analyzeObjectAge(inventoryData: InventoryReport): Promise<AgeAnalysisResult> {
+    console.log(`    ⏰ Analyzing object age for ${inventoryData.objects.length} objects`);
+
+    const now = new Date();
+    const msPerDay = 24 * 60 * 60 * 1000;
+
+    let oldObjectsCount = 0;
+    let oldObjectsTotalSize = 0;
+    let totalAge = 0;
+
+    const ageDistribution = {
+      lessThan30Days: 0,
+      between30And90Days: 0,
+      between90And365Days: 0,
+      moreThan365Days: 0
+    };
+
+    for (const obj of inventoryData.objects) {
+      const ageInDays = (now.getTime() - obj.lastModified.getTime()) / msPerDay;
+      totalAge += ageInDays;
+
+      if (ageInDays < 30) {
+        ageDistribution.lessThan30Days++;
+      } else if (ageInDays < 90) {
+        ageDistribution.between30And90Days++;
+      } else if (ageInDays < 365) {
+        ageDistribution.between90And365Days++;
+      } else {
+        ageDistribution.moreThan365Days++;
+        oldObjectsCount++;
+        oldObjectsTotalSize += obj.size;
+      }
+    }
+
+    const averageAge = inventoryData.objects.length > 0 ? totalAge / inventoryData.objects.length : 0;
+
+    // Calculate potential savings (rough estimate)
+    const standardCostPerGB = 0.023; // $0.023 per GB/month for Standard
+    const glacierCostPerGB = 0.004; // $0.004 per GB/month for Glacier
+    const oldObjectsGB = oldObjectsTotalSize / (1024 * 1024 * 1024);
+    const potentialSavings = oldObjectsGB * (standardCostPerGB - glacierCostPerGB) * 12; // Annual savings
+
+    const recommendedLifecyclePolicy: LifecyclePolicyRecommendation = {
+      transitionToIA: 30,
+      transitionToGlacier: 90,
+      deleteAfter: ageDistribution.moreThan365Days > inventoryData.objects.length * 0.1 ? 2555 : undefined, // 7 years
+      estimatedMonthlySavings: potentialSavings / 12
+    };
+
+    console.log(`    📊 Age analysis: ${oldObjectsCount} old objects (${(oldObjectsGB).toFixed(2)} GB), potential savings: $${potentialSavings.toFixed(2)}/year`);
+
+    return {
+      bucketName: inventoryData.bucketName,
+      oldObjectsCount,
+      oldObjectsTotalSize,
+      averageAge,
+      recommendedLifecyclePolicy,
+      potentialSavings,
+      ageDistribution
+    };
+  }
+
+  /**
+   * Algorithm 2: Detect parquet file compaction needs
+   */
+  private async detectParquetFileIssues(inventoryData: InventoryReport): Promise<ParquetAnalysisResult> {
+    console.log(`    📦 Analyzing parquet files for compaction opportunities`);
+
+    const parquetFiles = inventoryData.objects.filter(obj =>
+      obj.key.toLowerCase().endsWith('.parquet')
+    );
+
+    if (parquetFiles.length === 0) {
+      return {
+        bucketName: inventoryData.bucketName,
+        parquetFileCount: 0,
+        averageFileSize: 0,
+        recommendCompaction: false,
+        estimatedCompactionSavings: 0,
+        suggestedCompactionStrategy: 'No parquet files found',
+        directoriesWithSmallFiles: []
+      };
+    }
+
+    const totalSize = parquetFiles.reduce((sum, file) => sum + file.size, 0);
+    const averageFileSize = totalSize / parquetFiles.length;
+    const smallFileThreshold = 128 * 1024 * 1024; // 128MB
+
+    // Group by directory
+    const directoriesMap = new Map<string, InventoryObject[]>();
+
+    for (const file of parquetFiles) {
+      const directory = file.key.substring(0, file.key.lastIndexOf('/')) || '/';
+      if (!directoriesMap.has(directory)) {
+        directoriesMap.set(directory, []);
+      }
+      directoriesMap.get(directory)!.push(file);
+    }
+
+    const directoriesWithSmallFiles: DirectoryAnalysis[] = [];
+    let totalSmallFiles = 0;
+
+    // Use Array.from to iterate over Map entries
+    for (const [directory, files] of Array.from(directoriesMap.entries())) {
+      const smallFiles = files.filter(f => f.size < smallFileThreshold);
+      if (smallFiles.length > 10) { // More than 10 small files in a directory
+        const dirTotalSize = files.reduce((sum, f) => sum + f.size, 0);
+        const dirAvgSize = dirTotalSize / files.length;
+
+        directoriesWithSmallFiles.push({
+          path: directory,
+          fileCount: files.length,
+          averageFileSize: dirAvgSize,
+          recommendedPartitionScheme: 'Compact small files into larger files (target: 256MB-1GB per file)',
+          totalSize: dirTotalSize
+        });
+
+        totalSmallFiles += smallFiles.length;
+      }
+    }
+
+    const recommendCompaction = totalSmallFiles > parquetFiles.length * 0.3; // More than 30% are small files
+
+    // Estimate compaction savings (reduced metadata overhead, better query performance)
+    const estimatedCompactionSavings = recommendCompaction ? totalSmallFiles * 0.1 : 0; // $0.10 per small file eliminated
+
+    const suggestedCompactionStrategy = recommendCompaction
+      ? `Compact ${totalSmallFiles} small parquet files across ${directoriesWithSmallFiles.length} directories. Target 256MB-1GB per file for optimal query performance.`
+      : 'Parquet files are appropriately sized';
+
+    console.log(`    📦 Parquet analysis: ${parquetFiles.length} files, ${totalSmallFiles} small files, compaction recommended: ${recommendCompaction}`);
+
+    return {
+      bucketName: inventoryData.bucketName,
+      parquetFileCount: parquetFiles.length,
+      averageFileSize,
+      recommendCompaction,
+      estimatedCompactionSavings,
+      suggestedCompactionStrategy,
+      directoriesWithSmallFiles
+    };
+  }
+
+  /**
+   * Algorithm 3: Analyze partitioning needs
+   */
+  private async analyzePartitioningNeeds(inventoryData: InventoryReport): Promise<PartitioningAnalysisResult> {
+    console.log(`    🗂️  Analyzing directory structure for partitioning opportunities`);
+
+    // Group files by directory
+    const directoriesMap = new Map<string, InventoryObject[]>();
+
+    for (const obj of inventoryData.objects) {
+      const directory = obj.key.substring(0, obj.key.lastIndexOf('/')) || '/';
+      if (!directoriesMap.has(directory)) {
+        directoriesMap.set(directory, []);
+      }
+      directoriesMap.get(directory)!.push(obj);
+    }
+
+    const directoriesWithTooManyFiles: DirectoryAnalysis[] = [];
+    const fileCountThreshold = 1000; // More than 1000 files in a directory
+
+    // Use Array.from to iterate over Map entries
+    for (const [directory, files] of Array.from(directoriesMap.entries())) {
+      if (files.length > fileCountThreshold) {
+        const totalSize = files.reduce((sum, f) => sum + f.size, 0);
+        const averageFileSize = totalSize / files.length;
+
+        // Analyze file naming patterns for potential partition keys
+        let recommendedPartitionScheme = 'Consider partitioning by date, size, or file type';
+
+        // Check for date patterns in file names
+        const datePatterns = files.filter(f =>
+          /\d{4}[-/]\d{2}[-/]\d{2}/.test(f.key) || // YYYY-MM-DD or YYYY/MM/DD
+          /year=\d{4}/.test(f.key) || // Hive-style partitioning
+          /month=\d{2}/.test(f.key) ||
+          /day=\d{2}/.test(f.key)
+        );
+
+        if (datePatterns.length > files.length * 0.5) {
+          recommendedPartitionScheme = 'Partition by date (year/month/day) - detected date patterns in file names';
+        } else {
+          // Check for file type patterns
+          const extensions = new Set(files.map(f => {
+            const ext = f.key.split('.').pop()?.toLowerCase();
+            return ext || 'unknown';
+          }));
+
+          if (extensions.size > 1) {
+            recommendedPartitionScheme = `Partition by file type - detected ${extensions.size} different file types: ${Array.from(extensions).join(', ')}`;
+          }
+        }
+
+        directoriesWithTooManyFiles.push({
+          path: directory,
+          fileCount: files.length,
+          averageFileSize,
+          recommendedPartitionScheme,
+          totalSize
+        });
+      }
+    }
+
+    const recommendPartitioning = directoriesWithTooManyFiles.length > 0;
+
+    const suggestedPartitioningStrategy = recommendPartitioning
+      ? `Implement partitioning for ${directoriesWithTooManyFiles.length} directories with excessive file counts. This will improve query performance and reduce listing costs.`
+      : 'Current directory structure is well-organized';
+
+    const potentialQueryPerformanceImprovement = recommendPartitioning
+      ? `Query performance could improve by 50-90% with proper partitioning, especially for time-based queries`
+      : 'No significant performance improvement expected from partitioning';
+
+    console.log(`    🗂️  Partitioning analysis: ${directoriesWithTooManyFiles.length} directories need partitioning`);
+
+    return {
+      bucketName: inventoryData.bucketName,
+      totalFiles: inventoryData.objects.length,
+      directoriesWithTooManyFiles,
+      recommendPartitioning,
+      suggestedPartitioningStrategy,
+      potentialQueryPerformanceImprovement
+    };
+  }
+
+  /**
+   * Generate comprehensive analysis using AI with inventory insights
+   */
+  private async generateComprehensiveAnalysis(
+    bucketName: string,
+    inventoryData: InventoryReport,
+    ageAnalysis: AgeAnalysisResult,
+    parquetAnalysis: ParquetAnalysisResult,
+    partitioningAnalysis: PartitioningAnalysisResult,
+    bucketConfig: S3BucketConfig
+  ): Promise<S3BucketAnalysis> {
+    const currentDate = new Date().toISOString().split('T')[0];
+
+    const prompt = `You are an expert AWS S3 optimization analyst. Analyze bucket '${bucketName}' using inventory-based insights and provide recommendations.
+
+INVENTORY DATA SUMMARY:
+- Total Objects: ${inventoryData.totalObjects}
+- Total Size: ${(inventoryData.totalSize / (1024 * 1024 * 1024)).toFixed(2)} GB
+- Report Date: ${inventoryData.reportDate.toISOString()}
+
+AGE ANALYSIS RESULTS:
+- Objects older than 1 year: ${ageAnalysis.oldObjectsCount} (${(ageAnalysis.oldObjectsTotalSize / (1024 * 1024 * 1024)).toFixed(2)} GB)
+- Average object age: ${ageAnalysis.averageAge.toFixed(0)} days
+- Potential annual savings from lifecycle policies: $${ageAnalysis.potentialSavings.toFixed(2)}
+- Age distribution: <30 days: ${ageAnalysis.ageDistribution.lessThan30Days}, 30-90 days: ${ageAnalysis.ageDistribution.between30And90Days}, 90-365 days: ${ageAnalysis.ageDistribution.between90And365Days}, >365 days: ${ageAnalysis.ageDistribution.moreThan365Days}
+
+PARQUET ANALYSIS RESULTS:
+- Total parquet files: ${parquetAnalysis.parquetFileCount}
+- Average parquet file size: ${(parquetAnalysis.averageFileSize / (1024 * 1024)).toFixed(2)} MB
+- Compaction recommended: ${parquetAnalysis.recommendCompaction}
+- Directories with small files: ${parquetAnalysis.directoriesWithSmallFiles.length}
+- Strategy: ${parquetAnalysis.suggestedCompactionStrategy}
+
+PARTITIONING ANALYSIS RESULTS:
+- Directories needing partitioning: ${partitioningAnalysis.directoriesWithTooManyFiles.length}
+- Partitioning recommended: ${partitioningAnalysis.recommendPartitioning}
+- Strategy: ${partitioningAnalysis.suggestedPartitioningStrategy}
+- Performance improvement: ${partitioningAnalysis.potentialQueryPerformanceImprovement}
+
+BUCKET CONFIGURATION:
+${JSON.stringify(bucketConfig, null, 2)}
+
+Generate a JSON response following the S3BucketAnalysisSchema with specific, data-driven recommendations based on the analysis results above. Focus on:
+1. Lifecycle policy recommendations based on age analysis
+2. Parquet compaction recommendations if applicable
+3. Partitioning recommendations if applicable
+4. Security and configuration improvements
+5. Cost optimization opportunities
+
+Make recommendations specific and actionable with quantified benefits where possible.`;
+
+    const result = await generateObject({
+      model: google('gemini-1.5-pro'),
+      schema: S3BucketAnalysisSchema,
+      prompt,
+    });
+
+    return result.object;
+  }
+
+  /**
+   * Fallback to basic analysis when inventory is not available
+   */
+  private async performBasicAnalysis(bucketName: string, bucketRegion: string): Promise<S3BucketAnalysis> {
+    console.log(`    🔄 Performing basic analysis for ${bucketName} (inventory reports not available)`);
+
     // Get bucket configuration
     const bucketConfig = await this.getBucketConfiguration(bucketName, bucketRegion);
 
-    // Get sample objects for pattern analysis
-    const objects = await this.getSampleObjects(bucketName, bucketRegion);
+    // Get bucket metrics from CloudWatch
+    const bucketMetrics = await this.getBucketMetrics(bucketName, bucketRegion);
 
     const currentDate = new Date().toISOString().split('T')[0];
-    const objectsCount = objects.length;
-    const objectsPreview = objects.slice(0, 30).map(obj => obj.Key).join(', ');
+    const sizeGB = bucketMetrics.sizeBytes / (1024 * 1024 * 1024);
 
-    const prompt = `You are an expert AWS S3 optimization and security analyst.
-Analyze the S3 bucket '${bucketName}' and provide a comprehensive analysis as a JSON object strictly adhering to the S3BucketAnalysisSchema.
-The 'bucketName' will be '${bucketName}' and 'analysisDate' will be '${currentDate}'.
-A list of ${objectsCount} object keys/prefixes was provided for pattern analysis. Preview (up to 30): ${objectsPreview}.
-Current Bucket Configuration Status (Note: Full policy/ACL content is not provided, analyze based on status and general best practices):
-${JSON.stringify(bucketConfig, null, 2)}
+    // Determine if we have meaningful metrics data
+    const hasMetricsData = bucketMetrics.sizeBytes > 0 || bucketMetrics.objectCount > 0;
+    const metricsStatus = hasMetricsData 
+      ? `Available - ${sizeGB.toFixed(2)} GB, ${bucketMetrics.objectCount} objects`
+      : 'Not available - bucket may be empty or recently created';
 
-Your Task:
-Generate a JSON object matching the S3BucketAnalysisSchema.
-- **recommendations**: Provide detailed, actionable findings. For each recommendation:
-- Assign 'category' from: 'Storage', 'Security', 'Cost', 'Performance', 'Other'.
-- 'currentCostImpact' and 'estimatedSavingsImpact' should be qualitative (e.g., "High", "Moderate", "Low", "User to quantify") as precise figures are not derivable from input.
-- **summary**:
-- 'overallAssessment': A brief text summary.
-- 'findingsByPriority': Count your recommendations by their 'impact' field.
-- 'findingsByCategory': Count your recommendations by their 'category' field.
-- 'securityVulnerabilitiesCount': Should match 'findingsByCategory.security'.
-- 'costOptimizationOpportunitiesCount': Should match 'findingsByCategory.cost'.
-- **statistics**:
-- 'totalObjectsProvidedForAnalysis': ${objectsCount}.
+    const prompt = `You are an expert AWS S3 optimization analyst. Analyze bucket '${bucketName}' with limited data due to inventory reports not being available yet.
 
-Key Analysis Areas:
-1. **Storage & Cost Optimization**: Based on object names/patterns (e.g., 'archive/', 'logs/', '.bak', '.tmp', extensions like .parquet, .csv) and lifecycle status, suggest storage class optimizations, small object compaction considerations (if patterns suggest many small files), temporary file cleanup. Evaluate lifecycle rules for optimality (e.g., incomplete multipart upload cleanup, transitions, expirations). If no tags, recommend tagging.
-2. **Security**: Analyze policy/ACL status (recommend configuration if "Not configured" or if ACLs seem overly permissive from summary), versioning (recommend enabling), logging (recommend enabling), public access block (strongly recommend full block if not configured or if permissive), encryption (recommend default encryption). If object names suggest public web content and PAB isn't fully restrictive, recommend CloudFront.
+AVAILABLE DATA:
+- Bucket name: ${bucketName}
+- Bucket region: ${bucketRegion}
+- CloudWatch metrics: ${metricsStatus}
+- Bucket configuration: ${JSON.stringify(bucketConfig, null, 2)}
 
-Important Instructions:
-- Adhere STRICTLY to the S3BucketAnalysisSchema for the output.
-- Focus on actionable recommendations for improvement. Do not praise good configurations.
-- Ensure all recommendation fields are populated appropriately.
-- The 'objectCount' in a recommendation can refer to relevant items observed in the *provided* object list/patterns.
-- The 'totalSize' in a recommendation should usually be "User to determine based on full scan".
-- No "TODOs" in the output.
-- Keep the recommendations short and concise.
-- Don't give generic recommendations. Give specific recommendations backed by data. Like X%/Y of objects should be done ZZ etc.`;
+IMPORTANT LIMITATIONS:
+- S3 Inventory reports are not yet available for this bucket
+- Advanced analysis (object age, parquet compaction, partitioning) cannot be performed
+- Cost optimization recommendations are limited without object-level data
+${!hasMetricsData ? '- CloudWatch metrics show no data (bucket may be empty or recently created)' : ''}
+
+Generate a JSON response following the S3BucketAnalysisSchema. Focus on:
+1. Security improvements based on bucket configuration
+2. General lifecycle policy setup recommendations  
+3. Configuration best practices (encryption, versioning, logging)
+4. Inventory setup recommendations for future advanced analysis
+${!hasMetricsData ? '5. Note that the bucket appears to be empty or recently created' : ''}
+
+For recommendations that require inventory data, use titles like:
+- "Enable S3 Inventory for Advanced Analysis"
+- "Awaiting Inventory Reports for Object Age Analysis"
+- "Parquet Compaction Analysis - Requires Inventory Data"
+
+Mark cost estimates as "Awaiting inventory reports for detailed analysis" where object-level data is needed.
+${!hasMetricsData ? 'If the bucket appears empty, focus on setup and configuration recommendations.' : ''}`;
 
     const result = await generateObject({
       model: google('gemini-1.5-pro'),
@@ -423,37 +1012,20 @@ Important Instructions:
     return config;
   }
 
-  /**
-   * Get sample objects from bucket for pattern analysis
-   */
-  private async getSampleObjects(bucketName: string, bucketRegion: string): Promise<S3Object[]> {
-    const s3Client = this.getS3Client(bucketRegion);
-    
-    try {
-      const response = await s3Client.send(new ListObjectsV2Command({
-        Bucket: bucketName,
-        MaxKeys: 1000
-      }));
-      
-      return response.Contents || [];
-    } catch (error) {
-      console.error(`Failed to list objects in bucket ${bucketName}:`, error);
-      return [];
-    }
-  }
+
 
   /**
    * Extract recommended storage class from AI description
    */
   extractRecommendedStorageClass(description: string): string {
     const storageClasses = ['STANDARD_IA', 'ONEZONE_IA', 'GLACIER', 'GLACIER_IR', 'DEEP_ARCHIVE'];
-    
+
     for (const storageClass of storageClasses) {
       if (description.toUpperCase().includes(storageClass)) {
         return storageClass;
       }
     }
-    
+
     // Default recommendations based on common patterns
     if (description.toLowerCase().includes('archive') || description.toLowerCase().includes('backup')) {
       return 'GLACIER';
@@ -461,7 +1033,7 @@ Important Instructions:
     if (description.toLowerCase().includes('infrequent') || description.toLowerCase().includes('30 days')) {
       return 'STANDARD_IA';
     }
-    
+
     return 'STANDARD_IA'; // Default fallback
   }
 }

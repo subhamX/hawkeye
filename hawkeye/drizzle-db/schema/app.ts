@@ -83,6 +83,9 @@ export const s3AnalysisResults = pgTable('s3_analysis_result', {
   totalStorageGB: decimal('totalStorageGB', { precision: 15, scale: 2 }),
   potentialSavings: decimal('potentialSavings', { precision: 10, scale: 2 }),
   recommendations: jsonb('recommendations').$type<S3Recommendation[]>(),
+  ageAnalysis: jsonb('ageAnalysis').$type<AgeAnalysisResult>(),
+  parquetAnalysis: jsonb('parquetAnalysis').$type<ParquetAnalysisResult>(),
+  partitioningAnalysis: jsonb('partitioningAnalysis').$type<PartitioningAnalysisResult>(),
   createdAt: timestamp('createdAt', { mode: 'date' }).notNull().defaultNow(),
 });
 
@@ -128,6 +131,55 @@ export type S3Recommendation = {
   confidence: number;
   category: 'cost' | 'security' | 'general';
   aiGeneratedReport: string;
+};
+
+export type AgeAnalysisResult = {
+  bucketName: string;
+  oldObjectsCount: number;
+  oldObjectsTotalSize: number;
+  averageAge: number;
+  recommendedLifecyclePolicy: LifecyclePolicyRecommendation;
+  potentialSavings: number;
+  ageDistribution: {
+    lessThan30Days: number;
+    between30And90Days: number;
+    between90And365Days: number;
+    moreThan365Days: number;
+  };
+};
+
+export type ParquetAnalysisResult = {
+  bucketName: string;
+  parquetFileCount: number;
+  averageFileSize: number;
+  recommendCompaction: boolean;
+  estimatedCompactionSavings: number;
+  suggestedCompactionStrategy: string;
+  directoriesWithSmallFiles: DirectoryAnalysis[];
+};
+
+export type PartitioningAnalysisResult = {
+  bucketName: string;
+  totalFiles: number;
+  directoriesWithTooManyFiles: DirectoryAnalysis[];
+  recommendPartitioning: boolean;
+  suggestedPartitioningStrategy: string;
+  potentialQueryPerformanceImprovement: string;
+};
+
+export type DirectoryAnalysis = {
+  path: string;
+  fileCount: number;
+  averageFileSize: number;
+  recommendedPartitionScheme: string;
+  totalSize: number;
+};
+
+export type LifecyclePolicyRecommendation = {
+  transitionToIA: number; // days
+  transitionToGlacier: number; // days
+  deleteAfter?: number; // days
+  estimatedMonthlySavings: number;
 };
 
 export type EC2Recommendation = {

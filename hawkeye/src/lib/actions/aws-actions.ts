@@ -76,7 +76,7 @@ export async function listS3Buckets(roleArn: string, regions: string[]) {
         region: bucket.region,
         creationDate: bucket.creationDate?.toISOString(),
         estimatedSize: 'Unknown', // TODO: Get actual size from CloudWatch or S3 API
-      })),
+      })).filter(f => !(f.name.startsWith('hawkeye') && f.name.endsWith('artifacts'))),
       accountId: assumeRoleResult.accountId,
     };
 

@@ -3,11 +3,12 @@
 import { auth } from '@/lib/auth';
 import { awsAccountService } from '@/lib/db/aws-accounts';
 import { serviceConfigurationService } from '@/lib/db/service-configurations';
-import type { 
-  S3ServiceConfig, 
-  EC2ServiceConfig, 
-  EBSServiceConfig, 
-  CloudFormationServiceConfig 
+import { listS3Buckets } from './aws-actions';
+import type {
+  S3ServiceConfig,
+  EC2ServiceConfig,
+  EBSServiceConfig,
+  CloudFormationServiceConfig
 } from '../../../drizzle-db/schema/app';
 
 interface OnboardingData {
@@ -90,11 +91,27 @@ export async function completeOnboarding(onboardingData: OnboardingData) {
 
       // Create S3 bucket configurations if enabled and buckets selected
       if (s3Config.enabled && s3Config.selectedBuckets.length > 0) {
+        // Get bucket details with actual regions from AWS
+        const bucketDetails = await listS3Buckets(awsAccount.roleArn, awsAccount.regions);
+
+        if (!bucketDetails.success) {
+          throw new Error(`Failed to get bucket details: ${bucketDetails.error}`);
+        }
+
+        // Create a map of bucket names to their actual regions
+        const bucketRegionMap = new Map(
+          bucketDetails.buckets?.map(bucket => [bucket.name, bucket.region])
+        );
+
         for (const bucketName of s3Config.selectedBuckets) {
           try {
-            // Determine bucket region (simplified approach)
-            const bucketRegion = awsAccount.regions[0]; // Default to first region
-            
+            // Get the actual bucket region from AWS
+            const bucketRegion = bucketRegionMap.get(bucketName) || awsAccount.regions[0];
+
+            if (!bucketRegionMap.has(bucketName)) {
+              console.warn(`Could not determine region for bucket ${bucketName}, using default: ${bucketRegion}`);
+            }
+
             await awsAccountService.createS3BucketConfig({
               accountId: account.id,
               bucketName: bucketName,
@@ -162,7 +179,7 @@ export async function completeOnboarding(onboardingData: OnboardingData) {
       });
       serviceConfigs.push(cfnConfigRecord);
     }
-    
+
     return {
       success: true,
       message: 'Onboarding completed successfully',
@@ -177,7 +194,7 @@ export async function completeOnboarding(onboardingData: OnboardingData) {
 
   } catch (error) {
     console.error('Onboarding completion error:', error);
-    
+
     throw new Error(
       error instanceof Error ? error.message : 'Failed to complete onboarding'
     );

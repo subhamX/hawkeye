@@ -81,15 +81,19 @@
   - Create utilities for job scheduling and execution
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
 
-- [ ] 10. Build S3 analysis agent with AI-powered recommendations
+- [x] 10. Build S3 analysis agent with inventory-based analysis and AI-powered recommendations
 
-  - Create S3 analysis service using Inventory and Storage Class Analytics data
+  - Create S3 analysis service using S3 Inventory reports instead of direct object listing
+  - Implement object age analysis algorithm to detect old objects and recommend lifecycle policies
+  - Build parquet file compaction detection to identify too many small parquet files
+  - Create partitioning analysis algorithm to detect directories with too many files
+  - Add cross-region bucket access error handling for PermanentRedirect issues
   - Implement storage class recommendation algorithms with cost, security, and general categories
   - Integrate Vercel AI SDK v5 with Gemini to generate detailed recommendation reports
-  - Add cost calculation logic for optimization suggestions
-  - Create data processing pipeline for S3 metrics
+  - Add cost calculation logic for optimization suggestions including lifecycle and compaction savings
+  - Create data processing pipeline for S3 inventory data parsing
   - Use Server Actions for triggering S3 analysis instead of API endpoints
-  - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6_
+  - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.10_
 
 - [ ] 11. Implement EC2 analysis agent with AI-powered recommendations
 

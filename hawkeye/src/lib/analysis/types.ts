@@ -109,3 +109,72 @@ export interface InstanceMetrics {
     avgCPUUtilization: number;
   };
 }
+
+// S3 Inventory-based Analysis Types
+export interface InventoryObject {
+  key: string;
+  lastModified: Date;
+  size: number;
+  storageClass: string;
+  etag?: string;
+  isMultipartUploaded?: boolean;
+  replicationStatus?: string;
+  encryptionStatus?: string;
+}
+
+export interface InventoryReport {
+  bucketName: string;
+  reportDate: Date;
+  objects: InventoryObject[];
+  totalObjects: number;
+  totalSize: number;
+}
+
+export interface AgeAnalysisResult {
+  bucketName: string;
+  oldObjectsCount: number;
+  oldObjectsTotalSize: number;
+  averageAge: number;
+  recommendedLifecyclePolicy: LifecyclePolicyRecommendation;
+  potentialSavings: number;
+  ageDistribution: {
+    lessThan30Days: number;
+    between30And90Days: number;
+    between90And365Days: number;
+    moreThan365Days: number;
+  };
+}
+
+export interface ParquetAnalysisResult {
+  bucketName: string;
+  parquetFileCount: number;
+  averageFileSize: number;
+  recommendCompaction: boolean;
+  estimatedCompactionSavings: number;
+  suggestedCompactionStrategy: string;
+  directoriesWithSmallFiles: DirectoryAnalysis[];
+}
+
+export interface PartitioningAnalysisResult {
+  bucketName: string;
+  totalFiles: number;
+  directoriesWithTooManyFiles: DirectoryAnalysis[];
+  recommendPartitioning: boolean;
+  suggestedPartitioningStrategy: string;
+  potentialQueryPerformanceImprovement: string;
+}
+
+export interface DirectoryAnalysis {
+  path: string;
+  fileCount: number;
+  averageFileSize: number;
+  recommendedPartitionScheme: string;
+  totalSize: number;
+}
+
+export interface LifecyclePolicyRecommendation {
+  transitionToIA: number; // days
+  transitionToGlacier: number; // days
+  deleteAfter?: number; // days
+  estimatedMonthlySavings: number;
+}

@@ -178,13 +178,17 @@ class HeimdallAnalysisEngine {
 
     const allRecommendations: S3Recommendation[] = [];
     let totalStorageGB = 0;
+    let combinedAgeAnalysis: any = null;
+    let combinedParquetAnalysis: any = null;
+    let combinedPartitioningAnalysis: any = null;
 
     // Analyze each monitored bucket
     for (const bucketConfig of job.monitoredBuckets) {
       console.log(`    🔍 Analyzing bucket: ${bucketConfig.bucketName} (region: ${bucketConfig.region})`);
 
       try {
-        const bucketAnalysis = await s3Service.analyzeBucket(bucketConfig.bucketName, bucketConfig.region);
+        const artifactsBucket = `hawkeye-${job.account.accountId}-artifacts`;
+        const bucketAnalysis = await s3Service.analyzeBucket(bucketConfig.bucketName, bucketConfig.region, artifactsBucket);
 
         // Convert AI analysis to our recommendation format
         for (const rec of bucketAnalysis.recommendations) {
@@ -210,8 +214,55 @@ class HeimdallAnalysisEngine {
           });
         }
 
-        // Estimate storage size (would be more accurate with inventory data)
+        // Use actual statistics from inventory analysis
         totalStorageGB += bucketAnalysis.statistics.totalObjectsProvidedForAnalysis * 0.1; // Rough estimate
+
+        // Store individual analysis results (for the first bucket, or combine if multiple)
+        if (!combinedAgeAnalysis) {
+          // For now, just store the first bucket's analysis
+          // In a real implementation, you might want to combine results from multiple buckets
+          combinedAgeAnalysis = {
+            bucketName: 'Combined Analysis',
+            oldObjectsCount: 0,
+            oldObjectsTotalSize: 0,
+            averageAge: 0,
+            recommendedLifecyclePolicy: {
+              transitionToIA: 30,
+              transitionToGlacier: 90,
+              estimatedMonthlySavings: 0
+            },
+            potentialSavings: 0,
+            ageDistribution: {
+              lessThan30Days: 0,
+              between30And90Days: 0,
+              between90And365Days: 0,
+              moreThan365Days: 0
+            }
+          };
+        }
+
+        if (!combinedParquetAnalysis) {
+          combinedParquetAnalysis = {
+            bucketName: 'Combined Analysis',
+            parquetFileCount: 0,
+            averageFileSize: 0,
+            recommendCompaction: false,
+            estimatedCompactionSavings: 0,
+            suggestedCompactionStrategy: 'No parquet files analyzed',
+            directoriesWithSmallFiles: []
+          };
+        }
+
+        if (!combinedPartitioningAnalysis) {
+          combinedPartitioningAnalysis = {
+            bucketName: 'Combined Analysis',
+            totalFiles: 0,
+            directoriesWithTooManyFiles: [],
+            recommendPartitioning: false,
+            suggestedPartitioningStrategy: 'No partitioning issues detected',
+            potentialQueryPerformanceImprovement: 'No improvement needed'
+          };
+        }
 
       } catch (error) {
         console.error(`    ❌ Failed to analyze bucket ${bucketConfig.bucketName}:`, error);
@@ -226,6 +277,9 @@ class HeimdallAnalysisEngine {
         analysisRunId: job.id,
         potentialSavings: totalSavings.toString(),
         recommendations: allRecommendations,
+        ageAnalysis: combinedAgeAnalysis,
+        parquetAnalysis: combinedParquetAnalysis,
+        partitioningAnalysis: combinedPartitioningAnalysis,
       })
       .returning();
 

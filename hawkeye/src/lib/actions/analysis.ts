@@ -54,8 +54,12 @@ export async function triggerAnalysis(accountId: string) {
       })
       .returning();
 
-    // TODO: Queue the actual analysis job (will be implemented in task 9)
-    // For now, we'll just create the run record
+    // The analysis will be processed by the Heimdall engine (scripts/analyse-heimdall.ts)
+    // which now includes inventory-based S3 analysis with:
+    // - Object age analysis for lifecycle policy recommendations
+    // - Parquet file compaction detection
+    // - Partitioning analysis for performance optimization
+    // - Cross-region bucket access error handling
     
     // Revalidate the dashboard pages to show the new run
     revalidatePath('/dashboard');
@@ -64,7 +68,7 @@ export async function triggerAnalysis(accountId: string) {
     return { 
       success: true, 
       runId: newRun.id,
-      message: 'Analysis started successfully' 
+      message: 'Analysis started successfully. The system will now use S3 inventory reports for comprehensive analysis including object age, parquet compaction, and partitioning recommendations.' 
     };
 
   } catch (error) {

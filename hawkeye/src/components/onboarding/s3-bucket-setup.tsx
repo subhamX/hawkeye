@@ -23,9 +23,15 @@ interface S3Bucket {
   estimatedSize?: string;
 }
 
-export default function S3BucketSetup({ awsAccount, onNext, onBack }: S3BucketSetupProps) {
+export default function S3BucketSetup({
+  awsAccount,
+  onNext,
+  onBack,
+}: S3BucketSetupProps) {
   const [buckets, setBuckets] = useState<S3Bucket[]>([]);
-  const [selectedBuckets, setSelectedBuckets] = useState<Set<string>>(new Set());
+  const [selectedBuckets, setSelectedBuckets] = useState<Set<string>>(
+    new Set()
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -39,19 +45,30 @@ export default function S3BucketSetup({ awsAccount, onNext, onBack }: S3BucketSe
       setIsLoading(true);
       setError(null);
 
-      const result = await listS3Buckets(awsAccount.roleArn, awsAccount.regions);
+      const result = await listS3Buckets(
+        awsAccount.roleArn,
+        awsAccount.regions
+      );
 
       if (!result.success) {
         throw new Error(result.error || 'Failed to load S3 buckets');
       }
 
+
+
+      console.log(`hawkeye-${awsAccount.accountId}-artifacts`)
+
       setBuckets(result.buckets || []);
 
       // Auto-select all buckets by default
-      const bucketNames = new Set(result.buckets?.map((b: S3Bucket) => b.name) || []);
+      const bucketNames = new Set(
+        result.buckets?.map((b: S3Bucket) => b.name) || []
+      );
       setSelectedBuckets(bucketNames);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to load S3 buckets');
+      setError(
+        error instanceof Error ? error.message : 'Failed to load S3 buckets'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -68,7 +85,7 @@ export default function S3BucketSetup({ awsAccount, onNext, onBack }: S3BucketSe
   };
 
   const handleSelectAll = () => {
-    const allBucketNames = new Set(buckets.map(b => b.name));
+    const allBucketNames = new Set(buckets.map((b) => b.name));
     setSelectedBuckets(allBucketNames);
   };
 
@@ -92,7 +109,11 @@ export default function S3BucketSetup({ awsAccount, onNext, onBack }: S3BucketSe
 
         onNext(Array.from(selectedBuckets));
       } catch (error) {
-        setError(error instanceof Error ? error.message : 'Failed to configure S3 buckets');
+        setError(
+          error instanceof Error
+            ? error.message
+            : 'Failed to configure S3 buckets'
+        );
       }
     });
   };
@@ -113,11 +134,9 @@ export default function S3BucketSetup({ awsAccount, onNext, onBack }: S3BucketSe
       <div className="space-y-6">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            {error}
-          </AlertDescription>
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
-        
+
         <div className="flex justify-between">
           <Button variant="outline" onClick={onBack}>
             Back
@@ -126,9 +145,7 @@ export default function S3BucketSetup({ awsAccount, onNext, onBack }: S3BucketSe
             <Button variant="outline" onClick={loadS3Buckets}>
               Retry
             </Button>
-            <Button onClick={() => onNext([])}>
-              Skip S3 Setup
-            </Button>
+            <Button onClick={() => onNext([])}>Skip S3 Setup</Button>
           </div>
         </div>
       </div>
@@ -138,10 +155,13 @@ export default function S3BucketSetup({ awsAccount, onNext, onBack }: S3BucketSe
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold mb-2">Configure S3 Bucket Monitoring</h3>
+        <h3 className="text-lg font-semibold mb-2">
+          Configure S3 Bucket Monitoring
+        </h3>
         <p className="text-muted-foreground">
-          Select the S3 buckets you want to monitor for cost optimization. HawkEye will analyze
-          storage patterns and recommend optimal storage classes to reduce costs.
+          Select the S3 buckets you want to monitor for cost optimization.
+          HawkEye will analyze storage patterns and recommend optimal storage
+          classes to reduce costs.
         </p>
       </div>
 
@@ -150,10 +170,14 @@ export default function S3BucketSetup({ awsAccount, onNext, onBack }: S3BucketSe
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Database className="w-5 h-5" />
-            <span className="font-medium">Found {buckets.length} S3 buckets</span>
+            <span className="font-medium">
+              Found {buckets.length} S3 buckets
+            </span>
           </div>
           <div className="text-right">
-            <div className="text-lg font-semibold">{selectedBuckets.size} selected</div>
+            <div className="text-lg font-semibold">
+              {selectedBuckets.size} selected
+            </div>
             <div className="text-xs text-muted-foreground">for monitoring</div>
           </div>
         </div>
@@ -165,8 +189,8 @@ export default function S3BucketSetup({ awsAccount, onNext, onBack }: S3BucketSe
             <Database className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
             <h3 className="font-semibold mb-2">No S3 Buckets Found</h3>
             <p className="text-muted-foreground mb-4">
-              No S3 buckets were found in your AWS account. You can skip this step and
-              add buckets later from your dashboard.
+              No S3 buckets were found in your AWS account. You can skip this
+              step and add buckets later from your dashboard.
             </p>
           </CardContent>
         </Card>
@@ -190,26 +214,33 @@ export default function S3BucketSetup({ awsAccount, onNext, onBack }: S3BucketSe
           {/* Bucket List */}
           <div className="space-y-3 max-h-96 overflow-y-auto">
             {buckets.map((bucket) => (
-              <Card 
+              <Card
                 key={bucket.name}
                 className={`cursor-pointer transition-all ${
                   selectedBuckets.has(bucket.name)
                     ? 'ring-2 ring-primary bg-primary/5'
                     : 'hover:shadow-md'
                 }`}
-                onClick={() => handleBucketToggle(bucket.name, !selectedBuckets.has(bucket.name))}
+                onClick={() =>
+                  handleBucketToggle(
+                    bucket.name,
+                    !selectedBuckets.has(bucket.name)
+                  )
+                }
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Checkbox
                         checked={selectedBuckets.has(bucket.name)}
-                        onCheckedChange={(checked) => 
+                        onCheckedChange={(checked) =>
                           handleBucketToggle(bucket.name, checked as boolean)
                         }
                       />
                       <div>
-                        <CardTitle className="text-base">{bucket.name}</CardTitle>
+                        <CardTitle className="text-base">
+                          {bucket.name}
+                        </CardTitle>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="secondary" className="text-xs">
                             {bucket.region}
@@ -236,10 +267,12 @@ export default function S3BucketSetup({ awsAccount, onNext, onBack }: S3BucketSe
             <Alert>
               <CheckCircle className="h-4 w-4" />
               <AlertDescription>
-                HawkEye will enable Storage Class Analytics and S3 Inventory for the selected buckets.
-                This allows us to analyze your storage patterns and provide optimization recommendations.
+                HawkEye will enable Storage Class Analytics and S3 Inventory for
+                the selected buckets. This allows us to analyze your storage
+                patterns and provide optimization recommendations.
                 <br />
-                <strong>Note:</strong> It may take 24-48 hours for initial data to become available.
+                <strong>Note:</strong> It may take 24-48 hours for initial data
+                to become available.
               </AlertDescription>
             </Alert>
           )}
@@ -257,10 +290,7 @@ export default function S3BucketSetup({ awsAccount, onNext, onBack }: S3BucketSe
               Skip S3 Setup
             </Button>
           )}
-          <Button
-            onClick={handleNext}
-            disabled={isPending}
-          >
+          <Button onClick={handleNext} disabled={isPending}>
             {isPending ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />

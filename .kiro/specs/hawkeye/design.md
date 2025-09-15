@@ -133,6 +133,9 @@ interface S3Agent {
   ): Promise<S3Recommendations>;
   getInventoryData(bucket: string): Promise<InventoryReport>;
   getStorageAnalytics(bucket: string): Promise<AnalyticsReport>;
+  analyzeObjectAge(inventoryData: InventoryReport): Promise<AgeAnalysisResult>;
+  detectParquetFileIssues(inventoryData: InventoryReport): Promise<ParquetAnalysisResult>;
+  analyzePartitioningNeeds(inventoryData: InventoryReport): Promise<PartitioningAnalysisResult>;
 }
 
 interface EC2Agent {
@@ -200,6 +203,9 @@ interface S3AnalysisResult {
   totalStorageGB: number;
   potentialSavings: number;
   recommendations: S3Recommendation[];
+  ageAnalysis?: AgeAnalysisResult;
+  parquetAnalysis?: ParquetAnalysisResult;
+  partitioningAnalysis?: PartitioningAnalysisResult;
 }
 
 interface S3Recommendation {
@@ -211,6 +217,45 @@ interface S3Recommendation {
   confidence: number;
   category: "cost" | "security" | "general";
   aiGeneratedReport: string;
+}
+
+interface AgeAnalysisResult {
+  bucketName: string;
+  oldObjectsCount: number;
+  oldObjectsTotalSize: number;
+  averageAge: number;
+  recommendedLifecyclePolicy: LifecyclePolicyRecommendation;
+  potentialSavings: number;
+}
+
+interface ParquetAnalysisResult {
+  bucketName: string;
+  parquetFileCount: number;
+  averageFileSize: number;
+  recommendCompaction: boolean;
+  estimatedCompactionSavings: number;
+  suggestedCompactionStrategy: string;
+}
+
+interface PartitioningAnalysisResult {
+  bucketName: string;
+  totalFiles: number;
+  directoriesWithTooManyFiles: DirectoryAnalysis[];
+  recommendPartitioning: boolean;
+  suggestedPartitioningStrategy: string;
+}
+
+interface DirectoryAnalysis {
+  path: string;
+  fileCount: number;
+  averageFileSize: number;
+  recommendedPartitionScheme: string;
+}
+
+interface LifecyclePolicyRecommendation {
+  transitionToIA: number; // days
+  transitionToGlacier: number; // days
+  deleteAfter?: number; // days
 }
 
 interface EC2AnalysisResult {
@@ -313,6 +358,67 @@ interface EBSRecommendation {
 - **Encryption in Transit**: HTTPS/TLS for all communications
 - **PII Handling**: Minimal collection and secure storage of user data
 - **Data Retention**: Automatic cleanup of old analysis results
+
+## S3 Inventory-Based Analysis Strategy
+
+### Inventory Report Processing
+
+The S3 analysis system uses S3 Inventory reports instead of direct object listing to avoid cross-region access issues and improve performance for large buckets.
+
+#### Object Age Analysis Algorithm
+
+```typescript
+interface ObjectAgeAnalyzer {
+  analyzeObjectAge(inventoryData: InventoryReport): AgeAnalysisResult;
+  
+  // Algorithm steps:
+  // 1. Parse inventory CSV/Parquet files
+  // 2. Calculate object age from LastModifiedDate
+  // 3. Identify objects older than configurable thresholds (30, 90, 365 days)
+  // 4. Calculate storage costs for old objects
+  // 5. Generate lifecycle policy recommendations
+  // 6. Estimate cost savings from lifecycle transitions
+}
+```
+
+#### Parquet File Compaction Detection
+
+```typescript
+interface ParquetAnalyzer {
+  detectCompactionNeeds(inventoryData: InventoryReport): ParquetAnalysisResult;
+  
+  // Algorithm steps:
+  // 1. Filter objects by .parquet extension
+  // 2. Group parquet files by directory/partition
+  // 3. Calculate average file size per directory
+  // 4. Identify directories with many small parquet files (< 128MB)
+  // 5. Recommend compaction when file count > threshold and avg size < threshold
+  // 6. Estimate storage and query performance improvements
+}
+```
+
+#### Partitioning Strategy Analysis
+
+```typescript
+interface PartitioningAnalyzer {
+  analyzePartitioningNeeds(inventoryData: InventoryReport): PartitioningAnalysisResult;
+  
+  // Algorithm steps:
+  // 1. Analyze directory structure and file distribution
+  // 2. Identify directories with excessive file counts (> 1000 files)
+  // 3. Analyze file naming patterns for potential partition keys
+  // 4. Detect date/time patterns in object keys
+  // 5. Recommend partitioning schemes (by date, size, type)
+  // 6. Estimate query performance improvements
+}
+```
+
+### Error Handling for Cross-Region Buckets
+
+- **PermanentRedirect Handling**: Detect 301 redirects and retry with correct regional endpoint
+- **Inventory Fallback**: Use inventory reports when direct access fails
+- **Regional Discovery**: Automatically detect bucket regions from inventory metadata
+- **Graceful Degradation**: Provide partial analysis when some buckets are inaccessible
 
 ## Performance Optimization
 

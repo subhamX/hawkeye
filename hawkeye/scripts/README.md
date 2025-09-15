@@ -47,11 +47,25 @@ pending → running → completed/failed
 
 ### Real AWS Analysis
 
-The engine now performs real AWS analysis with a modular architecture:
-- **S3 Analysis**: Uses AWS SDK to analyze bucket configurations, object patterns, and generates AI-powered recommendations
-- **EC2/EBS Analysis**: Gathers instance and volume data, CloudWatch metrics, and provides optimization suggestions
+The engine now performs real AWS analysis with a modular architecture and inventory-based S3 analysis:
+
+#### S3 Analysis (Inventory-Based)
+- **Object Age Analysis**: Uses S3 inventory reports to identify old objects and recommend lifecycle policies
+- **Parquet Compaction**: Detects small parquet files that need compaction for better performance
+- **Partitioning Analysis**: Recommends directory partitioning strategies for improved query performance
+- **Cross-Region Handling**: Automatically detects bucket regions and handles PermanentRedirect errors
+- **Security Analysis**: Evaluates bucket configurations and access policies
+- **Cost Optimization**: Provides quantified savings estimates for lifecycle and storage optimizations
+
+#### EC2/EBS Analysis
+- **Instance Utilization**: Gathers CloudWatch metrics and provides rightsizing recommendations
+- **Unused Volume Detection**: Identifies unattached EBS volumes for cost savings
+- **Security Analysis**: Reviews security group configurations and access patterns
+
+#### Key Features
 - **AI Integration**: Uses Google Gemini with Zod schemas to generate structured, actionable recommendations
 - **Automatic Setup**: Creates necessary S3 analytics and inventory configurations
+- **Error Resilience**: Graceful fallback when inventory data is unavailable
 - **Modular Design**: Split into focused services for maintainability and testing
 
 ### Error Handling

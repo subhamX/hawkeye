@@ -75,12 +75,16 @@ HawkEye is a cloud cost optimization and resource monitoring platform designed t
 
 #### Acceptance Criteria
 
-1. WHEN the S3 agent runs THEN the system SHALL analyze data from S3 Inventory and Storage Class Analytics
+1. WHEN the S3 agent runs THEN the system SHALL analyze data from S3 Inventory reports instead of direct object listing
 2. WHEN analyzing S3 data THEN the system SHALL identify objects suitable for different storage classes
-3. WHEN generating recommendations THEN the system SHALL calculate potential cost savings for each suggestion
-4. WHEN recommendations are ready THEN the system SHALL display actionable steps with estimated savings
-5. WHEN no optimization opportunities exist THEN the system SHALL display confirmation that storage is optimized
-6. WHEN S3 analysis fails THEN the system SHALL log errors and display user-friendly error messages
+3. WHEN analyzing object age THEN the system SHALL implement algorithms to detect objects that are too old and recommend lifecycle policies
+4. WHEN analyzing file patterns THEN the system SHALL detect too many parquet files and recommend compaction strategies
+5. WHEN analyzing directory structure THEN the system SHALL detect lack of partitioning with too many files and recommend partitioning strategies
+6. WHEN generating recommendations THEN the system SHALL calculate potential cost savings for each suggestion
+7. WHEN recommendations are ready THEN the system SHALL display actionable steps with estimated savings
+8. WHEN no optimization opportunities exist THEN the system SHALL display confirmation that storage is optimized
+9. WHEN S3 analysis fails THEN the system SHALL log errors and display user-friendly error messages
+10. WHEN encountering bucket access errors like PermanentRedirect THEN the system SHALL gracefully handle cross-region bucket access issues
 
 ### Requirement 7
 
