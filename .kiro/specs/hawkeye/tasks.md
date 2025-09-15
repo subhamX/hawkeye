@@ -95,7 +95,7 @@
   - Use Server Actions for triggering S3 analysis instead of API endpoints
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.10_
 
-- [ ] 11. Implement EC2 analysis agent with AI-powered recommendations
+- [x] 11. Implement EC2 analysis agent with AI-powered recommendations
 
   - Create EC2 service for instance and EBS volume discovery
   - Implement unused EBS volume detection logic with categorized recommendations
@@ -123,7 +123,7 @@
   - Implement proper error logging and monitoring
   - _Requirements: 2.4, 2.6, 3.5, 5.4, 6.6, 7.6_
 
-- [ ] 14. Implement future services roadmap section
+- [x] 14. Implement future services roadmap section
 
   - Create "More services coming" section on dashboard
   - Add planned AWS services list with descriptions

@@ -1,10 +1,14 @@
 # About HawkEye: AI-Powered AWS Cost Optimization Platform
 
-[![KAGi7S9.md.png](https://iili.io/KAGi7S9.md.png)](https://freeimage.host/i/KAGi7S9)
+![](https://raw.githubusercontent.com/subhamX/hawkeye/refs/heads/main/docs/logo.png)
 
 ## Inspiration
 
 Public cloud has become the stepping stone that enables all of us to build, deploy, and scale applications within minutes. You no longer need a basement with air conditioning, cooling systems, and multiple backup generators to launch your next idea on the web—all because with a few clicks, we can rent a server in a remote datacenter.
+
+
+![](https://raw.githubusercontent.com/subhamX/hawkeye/refs/heads/main/docs/1.png)
+
 
 The public cloud market is currently valued at around **$723.4 billion USD** and is growing by **21.5% year over year**. From decentralized blockchain Ethereum nodes to centralized movie streaming websites like Netflix, to governments—everyone is on public cloud.
 
@@ -12,7 +16,7 @@ However, despite this massive adoption, **cloud is tricky**. People with years o
 
 This is where **HawkEye** comes in—an AI agent designed to monitor your public cloud accounts, identify security recommendations, and provide actionable insights on how you can reduce costs.
 
-[![KAGsirB.md.png](https://iili.io/KAGsirB.md.png)](https://freeimage.host/i/KAGsirB)
+![](https://raw.githubusercontent.com/subhamX/hawkeye/refs/heads/main/docs/2.png)
 
 ## What it does
 
@@ -44,7 +48,8 @@ HawkEye is a comprehensive AWS cost optimization platform that provides:
 - **Minimal Permissions**: Only requests necessary permissions for analysis
 - **No Data Storage**: Your sensitive data never leaves your AWS account
 
-[![KAGLtF2.md.png](https://iili.io/KAGLtF2.md.png)](https://freeimage.host/i/KAGLtF2)
+![](https://raw.githubusercontent.com/subhamX/hawkeye/refs/heads/main/docs/dashboard.png)
+
 
 ## How we built it
 
@@ -97,7 +102,8 @@ Kiro's AI assistant became an invaluable team member, helping us:
 - **Custom algorithms** for cost calculation and optimization logic
 - **Statistical analysis** for usage pattern recognition
 
-[![KAMJXLP.md.png](https://iili.io/KAMJXLP.md.png)](https://freeimage.host/i/KAMJXLP)
+![](https://raw.githubusercontent.com/subhamX/hawkeye/refs/heads/main/docs/drawio.png)
+
 
 ## Challenges we ran into
 
