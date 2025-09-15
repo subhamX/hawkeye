@@ -181,10 +181,10 @@ class HeimdallAnalysisEngine {
 
     // Analyze each monitored bucket
     for (const bucketConfig of job.monitoredBuckets) {
-      console.log(`    🔍 Analyzing bucket: ${bucketConfig.bucketName}`);
+      console.log(`    🔍 Analyzing bucket: ${bucketConfig.bucketName} (region: ${bucketConfig.region})`);
 
       try {
-        const bucketAnalysis = await s3Service.analyzeBucket(bucketConfig.bucketName);
+        const bucketAnalysis = await s3Service.analyzeBucket(bucketConfig.bucketName, bucketConfig.region);
 
         // Convert AI analysis to our recommendation format
         for (const rec of bucketAnalysis.recommendations) {

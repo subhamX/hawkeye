@@ -10,7 +10,6 @@ import {
   GetBucketAnalyticsConfigurationCommand,
   PutBucketInventoryConfigurationCommand,
   GetBucketInventoryConfigurationCommand,
-  GetBucketLocationCommand,
   type BucketLocationConstraint
 } from '@aws-sdk/client-s3';
 import { generateObject } from 'ai';
@@ -27,7 +26,7 @@ export class S3AnalysisService {
   constructor(credentials: AWSCredentials) {
     this.credentials = credentials;
     this.defaultRegion = credentials.region;
-
+    
     // Create default client
     this.s3Clients.set(credentials.region, new S3Client({
       region: credentials.region,
@@ -57,22 +56,56 @@ export class S3AnalysisService {
   }
 
   /**
-   * Get the region of a bucket
+   * Detect the actual region of a bucket when we get PermanentRedirect errors
    */
-  private async getBucketRegion(bucketName: string): Promise<string> {
-    try {
-      // Try with default client first
-      const defaultClient = this.s3Clients.get(this.defaultRegion)!;
-      const response = await defaultClient.send(new GetBucketLocationCommand({
-        Bucket: bucketName
-      }));
-
-      // AWS returns null for us-east-1
-      return response.LocationConstraint || 'us-east-1';
-    } catch (error) {
-      console.warn(`Could not determine region for bucket ${bucketName}, using default region ${this.defaultRegion}`);
-      return this.defaultRegion;
+  private async detectBucketRegion(bucketName: string, errorMessage?: string): Promise<string | null> {
+    // First, try to extract region from error message if available
+    if (errorMessage) {
+      const regionMatch = errorMessage.match(/\.s3\.([a-z0-9-]+)\.amazonaws\.com/);
+      if (regionMatch) {
+        const extractedRegion = regionMatch[1];
+        console.log(`    📍 Extracted region from error: ${extractedRegion}`);
+        
+        // Verify this region works
+        try {
+          const client = this.getS3Client(extractedRegion);
+          await client.send(new ListObjectsV2Command({
+            Bucket: bucketName,
+            MaxKeys: 1
+          }));
+          console.log(`    ✅ Confirmed bucket ${bucketName} is in region ${extractedRegion}`);
+          return extractedRegion;
+        } catch (error) {
+          console.warn(`    ⚠️  Extracted region ${extractedRegion} didn't work, trying other regions...`);
+        }
+      }
     }
+
+    // Fallback: try common AWS regions
+    const commonRegions = [
+      'eu-central-1', 'eu-west-1', 'us-east-1', 'us-west-2', 
+      'eu-west-2', 'eu-west-3', 'eu-north-1', 'us-east-2', 'us-west-1',
+      'ap-southeast-1', 'ap-southeast-2', 'ap-northeast-1', 'ap-northeast-2', 'ap-south-1',
+      'ca-central-1', 'sa-east-1'
+    ];
+
+    for (const region of commonRegions) {
+      try {
+        const client = this.getS3Client(region);
+        await client.send(new ListObjectsV2Command({
+          Bucket: bucketName,
+          MaxKeys: 1
+        }));
+        console.log(`    ✅ Found bucket ${bucketName} in region ${region}`);
+        return region;
+      } catch (error) {
+        // Continue trying other regions
+        continue;
+      }
+    }
+
+    console.warn(`    ⚠️  Could not detect region for bucket ${bucketName}`);
+    return null;
   }
 
   /**
@@ -83,7 +116,6 @@ export class S3AnalysisService {
 
     // Create artifacts bucket if it doesn't exist
     const artifactsBucketName = `hawkeye-${accountId}-artifacts`;
-
     const defaultClient = this.s3Clients.get(this.defaultRegion)!;
 
     try {
@@ -91,6 +123,7 @@ export class S3AnalysisService {
         Bucket: artifactsBucketName,
         MaxKeys: 1
       }));
+      console.log(`    📦 Artifacts bucket exists: ${artifactsBucketName}`);
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'NoSuchBucket') {
         console.log(`    📦 Creating artifacts bucket: ${artifactsBucketName}`);
@@ -103,14 +136,18 @@ export class S3AnalysisService {
       }
     }
 
-    console.log(`    📦 Artifacts bucket (in customer account): ${artifactsBucketName}`);
-
-    console.log(`Checking if monitoredBuckets are correct..`)
     // Setup analytics and inventory for each monitored bucket
     for (const bucket of monitoredBuckets) {
-      console.log(`    🔧 Setting up bucket: ${bucket.bucketName} (region: ${bucket.region})`);
-      await this.setupBucketAnalytics(bucket.bucketName, artifactsBucketName, bucket.region);
-      await this.setupBucketInventory(bucket.bucketName, artifactsBucketName, bucket.region);
+      console.log(`    🔧 Setting up bucket: ${bucket.bucketName} (stored region: ${bucket.region})`);
+      
+      try {
+        await this.setupBucketAnalytics(bucket.bucketName, artifactsBucketName, bucket.region);
+        await this.setupBucketInventory(bucket.bucketName, artifactsBucketName, bucket.region);
+        console.log(`    ✅ Successfully set up bucket ${bucket.bucketName}`);
+      } catch (error) {
+        console.error(`    ❌ Failed to setup bucket ${bucket.bucketName}:`, error);
+        throw error;
+      }
     }
   }
 
@@ -119,38 +156,78 @@ export class S3AnalysisService {
    */
   private async setupBucketAnalytics(bucketName: string, artifactsBucket: string, bucketRegion: string): Promise<void> {
     const configId = 'hawkeye-sca-v1';
-    const s3Client = this.getS3Client(bucketRegion);
+    
+    // Get the correct S3 client for this bucket's region
+    let s3Client = this.getS3Client(bucketRegion);
+    let actualRegion = bucketRegion;
 
     try {
+      console.log(`    📊 Checking analytics configuration for ${bucketName}`);
       await s3Client.send(new GetBucketAnalyticsConfigurationCommand({
         Bucket: bucketName,
         Id: configId
       }));
       console.log(`    ✅ Analytics already configured for ${bucketName}`);
+      return;
     } catch (error: unknown) {
-      if (error instanceof Error && error.name === 'NoSuchConfiguration') {
-        console.log(`    📊 Setting up analytics for ${bucketName}`);
-        await s3Client.send(new PutBucketAnalyticsConfigurationCommand({
-          Bucket: bucketName,
-          Id: configId,
-          AnalyticsConfiguration: {
-            Id: configId,
-            StorageClassAnalysis: {
-              DataExport: {
-                OutputSchemaVersion: 'V_1',
-                Destination: {
-                  S3BucketDestination: {
-                    Bucket: `arn:aws:s3:::${artifactsBucket}`,
-                    Prefix: `analytics/${bucketName}/`,
-                    Format: 'CSV'
-                  }
-                }
+      // Handle PermanentRedirect by detecting actual region
+      if (error instanceof Error && (
+        error.message.includes('PermanentRedirect') || 
+        error.name === 'PermanentRedirect' ||
+        (error as any).Code === 'PermanentRedirect'
+      )) {
+        console.log(`    🔄 PermanentRedirect detected, finding actual region for ${bucketName}...`);
+        const detectedRegion = await this.detectBucketRegion(bucketName, error.message);
+        if (detectedRegion && detectedRegion !== bucketRegion) {
+          console.log(`    📍 Using detected region: ${detectedRegion}`);
+          actualRegion = detectedRegion;
+          s3Client = this.getS3Client(actualRegion);
+          
+          // Retry the check with correct region
+          try {
+            await s3Client.send(new GetBucketAnalyticsConfigurationCommand({
+              Bucket: bucketName,
+              Id: configId
+            }));
+            console.log(`    ✅ Analytics already configured for ${bucketName} in region ${actualRegion}`);
+            return;
+          } catch (retryError: unknown) {
+            if (retryError instanceof Error && retryError.name !== 'NoSuchConfiguration') {
+              throw retryError;
+            }
+            // Continue to setup if NoSuchConfiguration
+          }
+        } else {
+          throw error;
+        }
+      } else if (error instanceof Error && error.name !== 'NoSuchConfiguration') {
+        throw error;
+      }
+      // Continue to setup if NoSuchConfiguration
+    }
+
+    // Setup analytics configuration
+    console.log(`    📊 Setting up analytics for ${bucketName} in region ${actualRegion}`);
+    await s3Client.send(new PutBucketAnalyticsConfigurationCommand({
+      Bucket: bucketName,
+      Id: configId,
+      AnalyticsConfiguration: {
+        Id: configId,
+        StorageClassAnalysis: {
+          DataExport: {
+            OutputSchemaVersion: 'V_1',
+            Destination: {
+              S3BucketDestination: {
+                Bucket: `arn:aws:s3:::${artifactsBucket}`,
+                Prefix: `analytics/${bucketName}/`,
+                Format: 'CSV'
               }
             }
           }
-        }));
+        }
       }
-    }
+    }));
+    console.log(`    ✅ Analytics configuration created for ${bucketName} in region ${actualRegion}`);
   }
 
   /**
@@ -158,55 +235,93 @@ export class S3AnalysisService {
    */
   private async setupBucketInventory(bucketName: string, artifactsBucket: string, bucketRegion: string): Promise<void> {
     const configId = 'hawkeye-inventory-v1';
-    const s3Client = this.getS3Client(bucketRegion);
+    
+    // Get the correct S3 client for this bucket's region
+    let s3Client = this.getS3Client(bucketRegion);
+    let actualRegion = bucketRegion;
 
     try {
+      console.log(`    📋 Checking inventory configuration for ${bucketName}`);
       await s3Client.send(new GetBucketInventoryConfigurationCommand({
         Bucket: bucketName,
         Id: configId
       }));
       console.log(`    ✅ Inventory already configured for ${bucketName}`);
+      return;
     } catch (error: unknown) {
-      if (error instanceof Error && error.name === 'NoSuchConfiguration') {
-        console.log(`    📋 Setting up inventory for ${bucketName}`);
-        await s3Client.send(new PutBucketInventoryConfigurationCommand({
-          Bucket: bucketName,
-          Id: configId,
-          InventoryConfiguration: {
-            Id: configId,
-            IsEnabled: true,
-            Destination: {
-              S3BucketDestination: {
-                Bucket: `arn:aws:s3:::${artifactsBucket}`,
-                Prefix: `inventory/${bucketName}/`,
-                Format: 'CSV'
-              }
-            },
-            Schedule: {
-              Frequency: 'Daily'
-            },
-            IncludedObjectVersions: 'Current',
-            OptionalFields: [
-              'Size',
-              'LastModifiedDate',
-              'StorageClass',
-              'ETag',
-              'IsMultipartUploaded',
-              'ReplicationStatus',
-              'EncryptionStatus'
-            ]
+      // Handle PermanentRedirect by detecting actual region
+      if (error instanceof Error && (
+        error.message.includes('PermanentRedirect') || 
+        error.name === 'PermanentRedirect' ||
+        (error as any).Code === 'PermanentRedirect'
+      )) {
+        console.log(`    🔄 PermanentRedirect detected, finding actual region for ${bucketName}...`);
+        const detectedRegion = await this.detectBucketRegion(bucketName, error.message);
+        if (detectedRegion && detectedRegion !== bucketRegion) {
+          console.log(`    📍 Using detected region: ${detectedRegion}`);
+          actualRegion = detectedRegion;
+          s3Client = this.getS3Client(actualRegion);
+          
+          // Retry the check with correct region
+          try {
+            await s3Client.send(new GetBucketInventoryConfigurationCommand({
+              Bucket: bucketName,
+              Id: configId
+            }));
+            console.log(`    ✅ Inventory already configured for ${bucketName} in region ${actualRegion}`);
+            return;
+          } catch (retryError: unknown) {
+            if (retryError instanceof Error && retryError.name !== 'NoSuchConfiguration') {
+              throw retryError;
+            }
+            // Continue to setup if NoSuchConfiguration
           }
-        }));
+        } else {
+          throw error;
+        }
+      } else if (error instanceof Error && error.name !== 'NoSuchConfiguration') {
+        throw error;
       }
+      // Continue to setup if NoSuchConfiguration
     }
+
+    // Setup inventory configuration
+    console.log(`    📋 Setting up inventory for ${bucketName} in region ${actualRegion}`);
+    await s3Client.send(new PutBucketInventoryConfigurationCommand({
+      Bucket: bucketName,
+      Id: configId,
+      InventoryConfiguration: {
+        Id: configId,
+        IsEnabled: true,
+        Destination: {
+          S3BucketDestination: {
+            Bucket: `arn:aws:s3:::${artifactsBucket}`,
+            Prefix: `inventory/${bucketName}/`,
+            Format: 'CSV'
+          }
+        },
+        Schedule: {
+          Frequency: 'Daily'
+        },
+        IncludedObjectVersions: 'Current',
+        OptionalFields: [
+          'Size',
+          'LastModifiedDate',
+          'StorageClass',
+          'ETag',
+          'IsMultipartUploaded',
+          'ReplicationStatus',
+          'EncryptionStatus'
+        ]
+      }
+    }));
+    console.log(`    ✅ Inventory configuration created for ${bucketName} in region ${actualRegion}`);
   }
 
   /**
    * Analyze a single S3 bucket using AI
    */
-  async analyzeBucket(bucketName: string): Promise<S3BucketAnalysis> {
-    // Get the bucket's region first
-    const bucketRegion = await this.getBucketRegion(bucketName);
+  async analyzeBucket(bucketName: string, bucketRegion: string): Promise<S3BucketAnalysis> {
     // Get bucket configuration
     const bucketConfig = await this.getBucketConfiguration(bucketName, bucketRegion);
 
@@ -313,13 +428,13 @@ Important Instructions:
    */
   private async getSampleObjects(bucketName: string, bucketRegion: string): Promise<S3Object[]> {
     const s3Client = this.getS3Client(bucketRegion);
-
+    
     try {
       const response = await s3Client.send(new ListObjectsV2Command({
         Bucket: bucketName,
         MaxKeys: 1000
       }));
-
+      
       return response.Contents || [];
     } catch (error) {
       console.error(`Failed to list objects in bucket ${bucketName}:`, error);
@@ -332,13 +447,13 @@ Important Instructions:
    */
   extractRecommendedStorageClass(description: string): string {
     const storageClasses = ['STANDARD_IA', 'ONEZONE_IA', 'GLACIER', 'GLACIER_IR', 'DEEP_ARCHIVE'];
-
+    
     for (const storageClass of storageClasses) {
       if (description.toUpperCase().includes(storageClass)) {
         return storageClass;
       }
     }
-
+    
     // Default recommendations based on common patterns
     if (description.toLowerCase().includes('archive') || description.toLowerCase().includes('backup')) {
       return 'GLACIER';
@@ -346,7 +461,7 @@ Important Instructions:
     if (description.toLowerCase().includes('infrequent') || description.toLowerCase().includes('30 days')) {
       return 'STANDARD_IA';
     }
-
+    
     return 'STANDARD_IA'; // Default fallback
   }
 }
