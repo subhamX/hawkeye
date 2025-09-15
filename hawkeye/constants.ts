@@ -1,5 +1,5 @@
 // HawkEye AWS Account ID for cross-account role assumption
-export const HAWKEYE_ACCOUNT_ID = '123456789012'; // Replace with actual HawkEye AWS account ID
+export const HAWKEYE_ACCOUNT_ID = '148761646029';
 
 // AWS Regions with metadata
 export const AWS_REGIONS = [

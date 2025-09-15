@@ -25,12 +25,13 @@ import type {
   EBSRecommendation,
   BucketSummary
 } from '../drizzle-db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, update } from 'drizzle-orm';
 
 // Analysis services
 import { getAWSCredentials, type AWSCredentials } from '../src/lib/analysis/aws-credentials';
 import { S3AnalysisService } from '../src/lib/analysis/s3-service';
 import { EC2AnalysisService } from '../src/lib/analysis/ec2-service';
+import { reportConsistencyService } from '../src/lib/analysis/report-consistency';
 import type { AnalysisJob } from '../src/lib/analysis/types';
 
 class HeimdallAnalysisEngine {
@@ -140,28 +141,57 @@ class HeimdallAnalysisEngine {
       // Update job status to running
       await this.updateJobStatus(job.id, 'running');
 
+      // Get last completed report for consistency checking
+      console.log('  📊 Retrieving last completed report for consistency...');
+      const lastReport = await reportConsistencyService.getLastCompletedReport(job.accountId);
+
       // Get AWS credentials
       const credentials = await getAWSCredentials(job.account.roleArn, job.account.regions[0]);
 
       let s3ResultsId: string | null = null;
       let ec2ResultsId: string | null = null;
+      let allS3Recommendations: S3Recommendation[] = [];
+      let allEC2Recommendations: EC2Recommendation[] = [];
+      let allEBSRecommendations: EBSRecommendation[] = [];
 
       // Run S3 analysis if enabled
       if (job.enabledServices.s3 && job.monitoredBuckets.length > 0) {
         console.log('  📦 Running S3 analysis...');
-        s3ResultsId = await this.runS3Analysis(job, credentials);
+        const { resultId, recommendations } = await this.runS3Analysis(job, credentials);
+        s3ResultsId = resultId;
+        allS3Recommendations = recommendations;
       }
 
       // Run EC2 analysis if enabled
       if (job.enabledServices.ec2 || job.enabledServices.ebs) {
         console.log('  🖥️  Running EC2/EBS analysis...');
-        ec2ResultsId = await this.runEC2Analysis(job, credentials);
+        const { resultId, ec2Recommendations, ebsRecommendations } = await this.runEC2Analysis(job, credentials);
+        ec2ResultsId = resultId;
+        allEC2Recommendations = ec2Recommendations;
+        allEBSRecommendations = ebsRecommendations;
       }
+
+      // Apply consistency logic to all recommendations
+      console.log('  🔄 Applying consistency logic with last report...');
+      const consistentRecommendations = reportConsistencyService.applyConsistencyLogic(
+        allS3Recommendations,
+        allEC2Recommendations,
+        allEBSRecommendations,
+        lastReport
+      );
+
+      // Update the stored results with consistent recommendations
+      await this.updateResultsWithConsistentRecommendations(
+        s3ResultsId,
+        ec2ResultsId,
+        consistentRecommendations
+      );
 
       // Update job with results and mark as completed
       await this.completeJob(job.id, s3ResultsId, ec2ResultsId);
 
       console.log(`  ✅ Job ${job.id} completed successfully`);
+      console.log(`  📊 Consistency report: Stability score ${consistentRecommendations.consistencyReport.stabilityScore.toFixed(2)}, ${consistentRecommendations.consistencyReport.recommendationsChanged} recommendations changed`);
     } catch (error) {
       console.error(`  ❌ Job ${job.id} failed:`, error);
       await this.failJob(job.id, error instanceof Error ? error.message : 'Unknown error');
@@ -171,7 +201,7 @@ class HeimdallAnalysisEngine {
   /**
    * Run S3 analysis for the account
    */
-  private async runS3Analysis(job: AnalysisJob, credentials: AWSCredentials): Promise<string> {
+  private async runS3Analysis(job: AnalysisJob, credentials: AWSCredentials): Promise<{ resultId: string; recommendations: S3Recommendation[] }> {
     const s3Service = new S3AnalysisService(credentials);
 
     // Ensure S3 setup is complete
@@ -333,7 +363,7 @@ class HeimdallAnalysisEngine {
       })
       .returning();
 
-    return result.id;
+    return { resultId: result.id, recommendations: allRecommendations };
   }
 
   /**
@@ -351,7 +381,7 @@ class HeimdallAnalysisEngine {
   /**
    * Run EC2/EBS analysis for the account
    */
-  private async runEC2Analysis(job: AnalysisJob, credentials: AWSCredentials): Promise<string> {
+  private async runEC2Analysis(job: AnalysisJob, credentials: AWSCredentials): Promise<{ resultId: string; ec2Recommendations: EC2Recommendation[]; ebsRecommendations: EBSRecommendation[] }> {
     const ec2Service = new EC2AnalysisService(credentials);
 
     // Run the analysis
@@ -372,7 +402,11 @@ class HeimdallAnalysisEngine {
       })
       .returning();
 
-    return result.id;
+    return { 
+      resultId: result.id, 
+      ec2Recommendations: analysis.instanceRecommendations,
+      ebsRecommendations: analysis.volumeRecommendations
+    };
   }
 
   /**
@@ -401,6 +435,47 @@ class HeimdallAnalysisEngine {
         ec2ResultsId,
       })
       .where(eq(analysisRuns.id, jobId));
+  }
+
+  /**
+   * Update stored results with consistent recommendations
+   */
+  private async updateResultsWithConsistentRecommendations(
+    s3ResultsId: string | null,
+    ec2ResultsId: string | null,
+    consistentRecommendations: any
+  ): Promise<void> {
+    // Update S3 results with consistent recommendations
+    if (s3ResultsId) {
+      const newS3Savings = consistentRecommendations.s3Recommendations.reduce(
+        (sum: number, rec: S3Recommendation) => sum + rec.potentialSavings, 0
+      );
+
+      await db
+        .update(s3AnalysisResults)
+        .set({
+          potentialSavings: newS3Savings.toString(),
+          recommendations: consistentRecommendations.s3Recommendations,
+        })
+        .where(eq(s3AnalysisResults.id, s3ResultsId));
+    }
+
+    // Update EC2 results with consistent recommendations
+    if (ec2ResultsId) {
+      const newEC2Savings = [
+        ...consistentRecommendations.ec2Recommendations,
+        ...consistentRecommendations.ebsRecommendations
+      ].reduce((sum: number, rec: any) => sum + rec.potentialSavings, 0);
+
+      await db
+        .update(ec2AnalysisResults)
+        .set({
+          potentialSavings: newEC2Savings.toString(),
+          unusedEBSVolumes: consistentRecommendations.ebsRecommendations,
+          utilizationRecommendations: consistentRecommendations.ec2Recommendations,
+        })
+        .where(eq(ec2AnalysisResults.id, ec2ResultsId));
+    }
   }
 
   /**

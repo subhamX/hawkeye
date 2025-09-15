@@ -161,7 +161,7 @@ export default function AWSAccountSetup({
           <Label htmlFor="roleArn">IAM Role ARN *</Label>
           <Input
             id="roleArn"
-            placeholder="arn:aws:iam::123456789012:role/HawkEyeRole"
+            placeholder="arn:aws:iam::148761646029:role/HawkEyeRole"
             value={roleArn}
             onChange={(e) => setRoleArn(e.target.value)}
             className="mt-1"

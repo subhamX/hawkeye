@@ -117,7 +117,12 @@ export class S3AnalysisService {
       }
 
       return actualRegion;
-    } catch (error) {
+    } catch (error: unknown) {
+      // Re-throw NoSuchBucket errors so they can be handled by the caller
+      if (error instanceof Error && error.name === 'NoSuchBucket') {
+        throw error;
+      }
+      
       console.warn(`    ⚠️  Could not determine bucket region for ${bucketName}, using assumed region: ${assumedRegion}`);
       return assumedRegion;
     }
@@ -162,10 +167,10 @@ export class S3AnalysisService {
 
         console.log(`    🔍 BucketSizeBytes response: ${sizeResponse.Datapoints?.length || 0} datapoints`);
         if (sizeResponse.Datapoints && sizeResponse.Datapoints.length > 0) {
-          const latestSizeDatapoint = sizeResponse.Datapoints.sort((a, b) => 
+          const latestSizeDatapoint = sizeResponse.Datapoints.sort((a, b) =>
             (b.Timestamp?.getTime() || 0) - (a.Timestamp?.getTime() || 0)
           )[0];
-          
+
           sizeBytes = Math.round(latestSizeDatapoint?.Average || 0);
           if (sizeBytes > 0) {
             console.log(`    📊 Total size: ${(sizeBytes / (1024 * 1024 * 1024)).toFixed(3)} GB`);
@@ -206,7 +211,6 @@ export class S3AnalysisService {
           Statistics: ['Average'] // Use Average as per AWS CLI example
         }));
 
-        console.log(countResponse)
         console.log(`    🔍 NumberOfObjects response: ${countResponse.Datapoints?.length || 0} datapoints`);
         if (countResponse.Datapoints && countResponse.Datapoints.length > 0) {
           console.log(`    📊 Latest object count datapoint:`, countResponse.Datapoints[0]);
@@ -307,7 +311,7 @@ export class S3AnalysisService {
 
     // Create artifacts bucket if it doesn't exist
     const artifactsBucketName = `hawkeye-${accountId}-artifacts`;
-    
+
     // Try to determine if artifacts bucket already exists and get its region
     let artifactsBucketRegion = this.defaultRegion;
     try {
@@ -315,17 +319,31 @@ export class S3AnalysisService {
       console.log(`    📦 Artifacts bucket exists in region: ${artifactsBucketRegion}`);
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'NoSuchBucket') {
-        console.log(`    📦 Creating artifacts bucket: ${artifactsBucketName} in region: ${this.defaultRegion}`);
-        const defaultClient = this.s3Clients.get(this.defaultRegion)!;
-        await defaultClient.send(new CreateBucketCommand({
-          Bucket: artifactsBucketName,
-          CreateBucketConfiguration: this.defaultRegion !== 'us-east-1' ? {
-            LocationConstraint: this.defaultRegion as BucketLocationConstraint
-          } : undefined
-        }));
-        artifactsBucketRegion = this.defaultRegion;
+        console.log(`    📦 Artifacts bucket ${artifactsBucketName} does not exist, creating in region: ${this.defaultRegion}`);
+        
+        try {
+          const defaultClient = this.s3Clients.get(this.defaultRegion)!;
+          const createBucketParams: any = {
+            Bucket: artifactsBucketName
+          };
+          
+          // Only add CreateBucketConfiguration for regions other than us-east-1
+          if (this.defaultRegion !== 'us-east-1') {
+            createBucketParams.CreateBucketConfiguration = {
+              LocationConstraint: this.defaultRegion as BucketLocationConstraint
+            };
+          }
+          
+          await defaultClient.send(new CreateBucketCommand(createBucketParams));
+          artifactsBucketRegion = this.defaultRegion;
+          console.log(`    ✅ Successfully created artifacts bucket: ${artifactsBucketName}`);
+        } catch (createError: unknown) {
+          console.error(`    ❌ Failed to create artifacts bucket: ${artifactsBucketName}`, createError);
+          throw createError;
+        }
       } else {
         console.warn(`    ⚠️  Could not determine artifacts bucket region, using default: ${this.defaultRegion}`);
+        console.warn(`    ⚠️  Error details:`, error);
       }
     }
 
@@ -995,7 +1013,7 @@ Respond only with valid JSON, no additional text.`;
       return analysisWithStats;
     } catch (error) {
       console.warn(`    ⚠️  Schema validation failed, using fallback analysis:`, error);
-      
+
       // Fallback analysis without schema validation
       return {
         bucketName,
@@ -1132,10 +1150,10 @@ Respond only with valid JSON, no additional text.`;
       return analysisWithStats;
     } catch (error) {
       console.warn(`    ⚠️  Schema validation failed, using fallback analysis:`, error);
-      
+
       // Fallback analysis without schema validation
       const isEmpty = bucketMetrics.sizeBytes === 0 && bucketMetrics.objectCount === 0;
-      
+
       return {
         bucketName,
         analysisDate: new Date().toISOString().split('T')[0],
@@ -1163,7 +1181,7 @@ Respond only with valid JSON, no additional text.`;
           }
         ],
         summary: {
-          overallAssessment: isEmpty 
+          overallAssessment: isEmpty
             ? 'Bucket appears to be empty and may be a candidate for deletion.'
             : `Bucket contains ${bucketMetrics.objectCount} objects with ${(bucketMetrics.sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB storage. Advanced analysis requires inventory reports.`,
           findingsByPriority: { High: 0, Medium: isEmpty ? 0 : 1, Low: isEmpty ? 1 : 0 },
@@ -1185,17 +1203,17 @@ Respond only with valid JSON, no additional text.`;
    */
   private parseAIJsonResponse(responseText: string): any {
     let cleanedText = responseText.trim();
-    
+
     // Remove markdown code block markers
     if (cleanedText.startsWith('```json')) {
       cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
     } else if (cleanedText.startsWith('```')) {
       cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
     }
-    
+
     // Remove any leading/trailing whitespace
     cleanedText = cleanedText.trim();
-    
+
     return JSON.parse(cleanedText);
   }
 

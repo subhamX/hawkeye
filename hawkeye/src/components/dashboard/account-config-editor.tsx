@@ -177,7 +177,7 @@ export default function AccountConfigEditor({ account }: AccountConfigEditorProp
             value={config.roleArn}
             onChange={(e) => setConfig(prev => ({ ...prev, roleArn: e.target.value }))}
             disabled={!isEditing}
-            placeholder="arn:aws:iam::123456789012:role/HawkEyeRole"
+            placeholder="arn:aws:iam::148761646029:role/HawkEyeRole"
           />
           <p className="text-xs text-muted-foreground">
             The IAM role ARN that HawkEye uses to access your AWS account
