@@ -4,6 +4,18 @@
 
 The `analyse-heimdall.ts` script is the core analysis engine for HawkEye. It processes pending analysis jobs from the database queue.
 
+### Prerequisites
+
+1. **Environment Variables**: Set up the following environment variables:
+   ```bash
+   GOOGLE_GENERATIVE_AI_API_KEY=your_google_ai_api_key
+   ```
+
+2. **AWS Permissions**: Ensure the IAM roles have the following permissions:
+   - S3: `s3:ListBucket`, `s3:GetObject`, `s3:GetBucketAnalyticsConfiguration`, `s3:PutBucketAnalyticsConfiguration`, `s3:GetBucketInventoryConfiguration`, `s3:PutBucketInventoryConfiguration`, `s3:CreateBucket`
+   - EC2: `ec2:DescribeInstances`, `ec2:DescribeVolumes`, `ec2:DescribeSecurityGroups`
+   - CloudWatch: `cloudwatch:GetMetricStatistics`
+
 ### Usage
 
 ```bash
@@ -33,21 +45,14 @@ bun run scripts/analyse-heimdall.ts
 pending → running → completed/failed
 ```
 
-### Mock Data
+### Real AWS Analysis
 
-Currently generates realistic mock data for testing:
-- S3 recommendations for storage class optimization
-- EC2 recommendations for instance rightsizing  
-- EBS recommendations for unused volumes
-- AI-generated reports explaining each recommendation
-
-### Production Implementation
-
-In production, replace mock data generation with:
-- AWS SDK calls to gather real resource data
-- CloudWatch metrics analysis
-- S3 Inventory and Storage Class Analytics processing
-- Real AI model integration for report generation
+The engine now performs real AWS analysis with a modular architecture:
+- **S3 Analysis**: Uses AWS SDK to analyze bucket configurations, object patterns, and generates AI-powered recommendations
+- **EC2/EBS Analysis**: Gathers instance and volume data, CloudWatch metrics, and provides optimization suggestions
+- **AI Integration**: Uses Google Gemini with Zod schemas to generate structured, actionable recommendations
+- **Automatic Setup**: Creates necessary S3 analytics and inventory configurations
+- **Modular Design**: Split into focused services for maintainability and testing
 
 ### Error Handling
 
@@ -65,3 +70,31 @@ The script outputs detailed logs:
 - 🖥️ EC2/EBS analysis  
 - ✅ Success completion
 - ❌ Error handling
+#
+# Architecture
+
+The analysis engine is now split into focused modules:
+
+### Core Modules
+
+- **`analyse-heimdall.ts`** - Main orchestration engine
+- **`src/lib/analysis/schemas.ts`** - Zod schemas for AI response validation
+- **`src/lib/analysis/aws-credentials.ts`** - AWS STS role assumption
+- **`src/lib/analysis/s3-service.ts`** - S3 bucket analysis and setup
+- **`src/lib/analysis/ec2-service.ts`** - EC2/EBS infrastructure analysis
+- **`src/lib/analysis/types.ts`** - TypeScript type definitions
+
+### Benefits of Modular Design
+
+1. **Maintainability**: Each service has a single responsibility
+2. **Testability**: Services can be unit tested independently
+3. **Reusability**: Services can be used in other parts of the application
+4. **Type Safety**: Zod schemas ensure AI responses match expected structure
+5. **Error Isolation**: Failures in one service don't affect others
+
+### Schema Validation
+
+Uses Zod schemas to validate AI-generated responses:
+- **S3BucketAnalysisSchema**: Validates S3 bucket analysis structure
+- **EC2InstanceAnalysisSchema**: Validates EC2 infrastructure analysis
+- Ensures consistent, type-safe data throughout the application

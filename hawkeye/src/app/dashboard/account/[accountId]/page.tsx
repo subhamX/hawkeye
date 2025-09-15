@@ -279,7 +279,7 @@ export default async function AccountDashboardPage({
                           <Badge variant={getStatusColor(run.status) as any}>
                             {run.status}
                           </Badge>
-                          {run.totalSavings && run.totalSavings > 0 && (
+                          {(run.totalSavings && run.totalSavings > 0) ? (
                             <div className="text-right">
                               <p className="font-semibold text-green-600">
                                 ${run.totalSavings.toFixed(2)}
@@ -288,7 +288,7 @@ export default async function AccountDashboardPage({
                                 savings found
                               </p>
                             </div>
-                          )}
+                          ): null}
                           <Button variant="outline" size="sm" asChild>
                             <Link
                               href={`/dashboard/account/${account.id}/analysis/${run.id}`}
