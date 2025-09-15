@@ -1,14 +1,16 @@
 # About HawkEye: AI-Powered AWS Cost Optimization Platform
 
+## 🎥 Demo Video
+
+Watch our complete demo and walkthrough: [HawkEye Demo Video](https://www.youtube.com/watch?v=BoXIIWG5bNE)
+
 ![](https://raw.githubusercontent.com/subhamX/hawkeye/refs/heads/main/docs/logo.png)
 
 ## Inspiration
 
 Public cloud has become the stepping stone that enables all of us to build, deploy, and scale applications within minutes. You no longer need a basement with air conditioning, cooling systems, and multiple backup generators to launch your next idea on the web—all because with a few clicks, we can rent a server in a remote datacenter.
 
-
 ![](https://raw.githubusercontent.com/subhamX/hawkeye/refs/heads/main/docs/1.png)
-
 
 The public cloud market is currently valued at around **$723.4 billion USD** and is growing by **21.5% year over year**. From decentralized blockchain Ethereum nodes to centralized movie streaming websites like Netflix, to governments—everyone is on public cloud.
 
@@ -50,7 +52,6 @@ HawkEye is a comprehensive AWS cost optimization platform that provides:
 
 ![](https://raw.githubusercontent.com/subhamX/hawkeye/refs/heads/main/docs/dashboard.png)
 
-
 ## How we built it
 
 ### **Development Environment: Powered by Kiro IDE**
@@ -72,7 +73,6 @@ Kiro's AI assistant became an invaluable team member, helping us:
 - **Consistent Environment**: Every team member worked in the same standardized development environment
 - **Real-time Collaboration**: Multiple developers could work on the same codebase simultaneously
 - **Integrated Terminal**: Full access to npm, git, and deployment tools directly in the browser
-
 
 ### **Frontend Architecture**
 
@@ -104,7 +104,6 @@ Kiro's AI assistant became an invaluable team member, helping us:
 
 ![](https://raw.githubusercontent.com/subhamX/hawkeye/refs/heads/main/docs/drawio.png)
 
-
 ## Challenges we ran into
 
 ### **1. AWS Permissions Complexity**
@@ -132,7 +131,6 @@ Kiro's AI assistant became an invaluable team member, helping us:
 - **Challenge**: Securely accessing multiple AWS accounts without compromising security
 - **Solution**: Implemented cross-account IAM roles with time-limited access and comprehensive audit logging
 
-
 ## Accomplishments that we're proud of
 
 ### **🎯 Technical Achievements**
@@ -153,7 +151,6 @@ Kiro's AI assistant became an invaluable team member, helping us:
 - **AI-First Approach**: One of the first platforms to use AI for comprehensive AWS cost optimization
 - **User-Centric Design**: Focused on making cloud optimization accessible to non-experts
 - **Comprehensive Coverage**: Supports multiple AWS services with plans for expansion
-
 
 ## What we learned
 
@@ -180,9 +177,7 @@ Working with **Kiro IDE** fundamentally changed how we approach software develop
 - **Progressive Disclosure**: Showing the right amount of information at the right time improves decision-making
 - **Responsive Design**: Mobile-first development is essential for modern web applications
 
-
 ## What's next for HawkEye
-
 
 ### **Enhanced AWS Coverage**
 
@@ -196,10 +191,8 @@ Working with **Kiro IDE** fundamentally changed how we approach software develop
 - **Budget Alerts**: Proactive notifications when costs exceed thresholds
 - **Team Collaboration**: Multi-user access with role-based permissions
 
-
 ### **Multi-Cloud Support**
 
 - **Azure Integration**: Extend optimization capabilities to Microsoft Azure
 - **Google Cloud Platform**: Add GCP cost optimization features
 - **Unified Dashboard**: Single pane of glass for multi-cloud environments
-
