@@ -80,7 +80,7 @@ export const s3AnalysisResults = pgTable('s3_analysis_result', {
   analysisRunId: text('analysisRunId')
     .notNull()
     .references(() => analysisRuns.id, { onDelete: 'cascade' }),
-  totalStorageGB: decimal('totalStorageGB', { precision: 15, scale: 2 }),
+  totalStorageBytes: decimal('totalStorageBytes', { precision: 20, scale: 0 }),
   totalObjectCount: integer('totalObjectCount'),
   potentialSavings: decimal('potentialSavings', { precision: 10, scale: 2 }),
   recommendations: jsonb('recommendations').$type<S3Recommendation[]>(),
@@ -139,14 +139,14 @@ export type BucketSummary = {
   bucketName: string;
   region: string;
   objectCount: number;
-  totalSizeGB: number;
+  totalSizeBytes: number;
   isEmpty: boolean;
   recommendDeletion: boolean;
   lastModified?: Date;
   storageClasses: {
     [key: string]: {
       objectCount: number;
-      sizeGB: number;
+      sizeBytes: number;
     };
   };
 };

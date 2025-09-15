@@ -42,6 +42,7 @@ Enhanced the HawkEye analysis system with comprehensive object tracking, empty b
 
 ### New Fields in `s3_analysis_result`:
 - `totalObjectCount`: Integer field tracking total objects analyzed
+- `totalStorageBytes`: Decimal field storing total storage in bytes (replacing totalStorageGB)
 - `bucketSummaries`: JSONB field containing detailed bucket information
 
 ### New Type: `BucketSummary`
@@ -50,18 +51,25 @@ type BucketSummary = {
   bucketName: string;
   region: string;
   objectCount: number;
-  totalSizeGB: number;
+  totalSizeBytes: number; // Storage in bytes for precision
   isEmpty: boolean;
   recommendDeletion: boolean;
   lastModified?: Date;
   storageClasses: {
     [key: string]: {
       objectCount: number;
-      sizeGB: number;
+      sizeBytes: number; // Storage in bytes for precision
     };
   };
 };
 ```
+
+### Storage Display Format
+- **Storage**: All sizes are stored in bytes in the database for maximum precision
+- **Display**: All sizes are displayed in megabytes (MB) in the UI for consistency
+- **Formatting**: Uses intelligent formatting with appropriate decimal places based on size
+- **Data Flow**: S3 service now returns `totalSizeBytes` and `storageClassBreakdown` with byte values
+- **Schema Updates**: Updated S3AnalysisStatisticsSchema to include size and storage class information
 
 ## UI Components
 

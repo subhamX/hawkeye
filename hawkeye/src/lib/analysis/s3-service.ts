@@ -19,7 +19,7 @@ import {
   GetMetricStatisticsCommand,
   type Datapoint
 } from '@aws-sdk/client-cloudwatch';
-import { generateObject } from 'ai';
+import { generateText } from 'ai';
 import { google } from '@ai-sdk/google';
 import type { AWSCredentials } from './aws-credentials';
 import { S3BucketAnalysisSchema, type S3BucketAnalysis } from './schemas';
@@ -108,14 +108,14 @@ export class S3AnalysisService {
       const locationResponse = await s3Client.send(new GetBucketLocationCommand({
         Bucket: bucketName
       }));
-      
+
       // Handle the special case where us-east-1 returns null/undefined
       const actualRegion = locationResponse.LocationConstraint || 'us-east-1';
-      
+
       if (actualRegion !== assumedRegion) {
         console.log(`    📍 Bucket ${bucketName} actual region: ${actualRegion} (was assuming: ${assumedRegion})`);
       }
-      
+
       return actualRegion;
     } catch (error) {
       console.warn(`    ⚠️  Could not determine bucket region for ${bucketName}, using assumed region: ${assumedRegion}`);
@@ -133,7 +133,7 @@ export class S3AnalysisService {
     // First, get the actual bucket region
     const actualRegion = await this.getActualBucketRegion(bucketName, bucketRegion);
     const cloudWatchClient = this.getCloudWatchClient(actualRegion);
-    
+
     const endTime = new Date();
     const startTime = new Date(endTime.getTime() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
 
@@ -143,6 +143,39 @@ export class S3AnalysisService {
     try {
       let sizeBytes = 0;
       let objectCount = 0;
+
+      // Get bucket size in bytes
+      try {
+        console.log(`    🔍 Querying BucketSizeBytes for ${bucketName}...`);
+        const sizeResponse = await cloudWatchClient.send(new GetMetricStatisticsCommand({
+          Namespace: 'AWS/S3',
+          MetricName: 'BucketSizeBytes',
+          Dimensions: [
+            { Name: 'BucketName', Value: bucketName },
+            { Name: 'StorageType', Value: 'StandardStorage' }
+          ],
+          StartTime: startTime,
+          EndTime: endTime,
+          Period: 86400, // 1 day
+          Statistics: ['Average']
+        }));
+
+        console.log(`    🔍 BucketSizeBytes response: ${sizeResponse.Datapoints?.length || 0} datapoints`);
+        if (sizeResponse.Datapoints && sizeResponse.Datapoints.length > 0) {
+          const latestSizeDatapoint = sizeResponse.Datapoints.sort((a, b) => 
+            (b.Timestamp?.getTime() || 0) - (a.Timestamp?.getTime() || 0)
+          )[0];
+          
+          sizeBytes = Math.round(latestSizeDatapoint?.Average || 0);
+          if (sizeBytes > 0) {
+            console.log(`    📊 Total size: ${(sizeBytes / (1024 * 1024 * 1024)).toFixed(3)} GB`);
+          }
+        } else {
+          console.log(`    ⚠️  No size data available for ${bucketName}`);
+        }
+      } catch (error) {
+        console.warn(`    ❌ Failed to get bucket size for ${bucketName}:`, error);
+      }
 
       // Get object count
       try {
@@ -177,11 +210,11 @@ export class S3AnalysisService {
         console.log(`    🔍 NumberOfObjects response: ${countResponse.Datapoints?.length || 0} datapoints`);
         if (countResponse.Datapoints && countResponse.Datapoints.length > 0) {
           console.log(`    📊 Latest object count datapoint:`, countResponse.Datapoints[0]);
-          
-          const latestCountDatapoint = countResponse.Datapoints.sort((a, b) => 
+
+          const latestCountDatapoint = countResponse.Datapoints.sort((a, b) =>
             (b.Timestamp?.getTime() || 0) - (a.Timestamp?.getTime() || 0)
           )[0];
-          
+
           objectCount = Math.round(latestCountDatapoint?.Average || 0);
           if (objectCount > 0) {
             console.log(`    📊 Total objects: ${objectCount.toLocaleString()}`);
@@ -274,23 +307,25 @@ export class S3AnalysisService {
 
     // Create artifacts bucket if it doesn't exist
     const artifactsBucketName = `hawkeye-${accountId}-artifacts`;
-    const defaultClient = this.s3Clients.get(this.defaultRegion)!;
-
+    
+    // Try to determine if artifacts bucket already exists and get its region
+    let artifactsBucketRegion = this.defaultRegion;
     try {
-      await defaultClient.send(new ListObjectsV2Command({
-        Bucket: artifactsBucketName,
-        MaxKeys: 1
-      }));
-      console.log(`    📦 Artifacts bucket exists: ${artifactsBucketName}`);
+      artifactsBucketRegion = await this.getActualBucketRegion(artifactsBucketName, this.defaultRegion);
+      console.log(`    📦 Artifacts bucket exists in region: ${artifactsBucketRegion}`);
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'NoSuchBucket') {
-        console.log(`    📦 Creating artifacts bucket: ${artifactsBucketName}`);
+        console.log(`    📦 Creating artifacts bucket: ${artifactsBucketName} in region: ${this.defaultRegion}`);
+        const defaultClient = this.s3Clients.get(this.defaultRegion)!;
         await defaultClient.send(new CreateBucketCommand({
           Bucket: artifactsBucketName,
           CreateBucketConfiguration: this.defaultRegion !== 'us-east-1' ? {
             LocationConstraint: this.defaultRegion as BucketLocationConstraint
           } : undefined
         }));
+        artifactsBucketRegion = this.defaultRegion;
+      } else {
+        console.warn(`    ⚠️  Could not determine artifacts bucket region, using default: ${this.defaultRegion}`);
       }
     }
 
@@ -299,8 +334,8 @@ export class S3AnalysisService {
       console.log(`    🔧 Setting up bucket: ${bucket.bucketName} (stored region: ${bucket.region})`);
 
       try {
-        await this.setupBucketAnalytics(bucket.bucketName, artifactsBucketName, bucket.region);
-        await this.setupBucketInventory(bucket.bucketName, artifactsBucketName, bucket.region);
+        await this.setupBucketAnalytics(bucket.bucketName, artifactsBucketName, bucket.region, artifactsBucketRegion);
+        await this.setupBucketInventory(bucket.bucketName, artifactsBucketName, bucket.region, artifactsBucketRegion);
         console.log(`    ✅ Successfully set up bucket ${bucket.bucketName}`);
       } catch (error) {
         console.error(`    ❌ Failed to setup bucket ${bucket.bucketName}:`, error);
@@ -312,7 +347,7 @@ export class S3AnalysisService {
   /**
    * Setup Storage Class Analytics for a bucket
    */
-  private async setupBucketAnalytics(bucketName: string, artifactsBucket: string, bucketRegion: string): Promise<void> {
+  private async setupBucketAnalytics(bucketName: string, artifactsBucket: string, bucketRegion: string, artifactsBucketRegion?: string): Promise<void> {
     const configId = 'hawkeye-sca-v1';
 
     // Get the correct S3 client for this bucket's region
@@ -391,7 +426,7 @@ export class S3AnalysisService {
   /**
    * Setup S3 Inventory for a bucket
    */
-  private async setupBucketInventory(bucketName: string, artifactsBucket: string, bucketRegion: string): Promise<void> {
+  private async setupBucketInventory(bucketName: string, artifactsBucket: string, bucketRegion: string, artifactsBucketRegion?: string): Promise<void> {
     const configId = 'hawkeye-inventory-v1';
 
     // Get the correct S3 client for this bucket's region
@@ -485,7 +520,7 @@ export class S3AnalysisService {
     try {
       // Get the actual bucket region first
       const actualRegion = await this.getActualBucketRegion(bucketName, bucketRegion);
-      
+
       // Get inventory data instead of direct object listing
       const inventoryData = await this.getInventoryData(bucketName, artifactsBucket, actualRegion);
 
@@ -523,10 +558,19 @@ export class S3AnalysisService {
    * Get inventory data from S3 inventory reports
    */
   private async getInventoryData(bucketName: string, artifactsBucket: string, bucketRegion: string): Promise<InventoryReport> {
-    const s3Client = this.getS3Client(bucketRegion);
+    // First try to get the artifacts bucket region
+    let artifactsBucketRegion = bucketRegion;
+    try {
+      const artifactsBucketLocation = await this.getActualBucketRegion(artifactsBucket, bucketRegion);
+      artifactsBucketRegion = artifactsBucketLocation;
+    } catch (error) {
+      console.warn(`    ⚠️  Could not determine artifacts bucket region, using default: ${bucketRegion}`);
+    }
+
+    const s3Client = this.getS3Client(artifactsBucketRegion);
     const inventoryPrefix = `inventory/${bucketName}/`;
 
-    console.log(`    📋 Fetching inventory data from ${artifactsBucket}/${inventoryPrefix}`);
+    console.log(`    📋 Fetching inventory data from ${artifactsBucket}/${inventoryPrefix} in region ${artifactsBucketRegion}`);
 
     try {
       // List inventory files
@@ -553,7 +597,7 @@ export class S3AnalysisService {
       console.log(`    📄 Processing inventory file: ${latestInventoryFile.Key}`);
 
       // Download and parse the inventory file
-      const inventoryObjects = await this.parseInventoryFile(artifactsBucket, latestInventoryFile.Key!, bucketRegion);
+      const inventoryObjects = await this.parseInventoryFile(artifactsBucket, latestInventoryFile.Key!, artifactsBucketRegion);
 
       return {
         bucketName,
@@ -897,13 +941,92 @@ Generate a JSON response following the S3BucketAnalysisSchema with specific, dat
 
 Make recommendations specific and actionable with quantified benefits where possible.`;
 
-    const result = await generateObject({
-      model: google('gemini-1.5-pro'),
-      schema: S3BucketAnalysisSchema,
-      prompt,
-    });
+    try {
+      const jsonPrompt = prompt + `
 
-    return result.object;
+Please respond with a valid JSON object that matches this structure:
+{
+  "bucketName": "string",
+  "analysisDate": "YYYY-MM-DD",
+  "recommendations": [
+    {
+      "category": "Storage|Security|Cost|Performance|Other",
+      "impact": "High|Medium|Low",
+      "title": "string",
+      "description": "string",
+      "currentCostImpact": "string",
+      "estimatedSavingsImpact": "string",
+      "objectCount": number,
+      "totalSize": "string"
+    }
+  ],
+  "summary": {
+    "overallAssessment": "string",
+    "findingsByPriority": {"High": 0, "Medium": 0, "Low": 0},
+    "findingsByCategory": {"Storage": 0, "Security": 0, "Cost": 0, "Performance": 0, "Other": 0},
+    "securityVulnerabilitiesCount": 0,
+    "costOptimizationOpportunitiesCount": 0
+  },
+  "statistics": {
+    "totalObjectsProvidedForAnalysis": ${inventoryData.totalObjects}
+  }
+}
+
+Respond only with valid JSON, no additional text.`;
+
+      const result = await generateText({
+        model: google('gemini-1.5-pro'),
+        prompt: jsonPrompt,
+      });
+
+      const analysisResult = this.parseAIJsonResponse(result.text);
+
+      // Add the actual statistics from inventory data
+      const analysisWithStats = {
+        ...analysisResult,
+        statistics: {
+          ...analysisResult.statistics,
+          totalSizeBytes: inventoryData.totalSize,
+          storageClassBreakdown: this.buildStorageClassBreakdown(inventoryData),
+          lastModified: inventoryData.reportDate.toISOString()
+        }
+      };
+
+      return analysisWithStats;
+    } catch (error) {
+      console.warn(`    ⚠️  Schema validation failed, using fallback analysis:`, error);
+      
+      // Fallback analysis without schema validation
+      return {
+        bucketName,
+        analysisDate: new Date().toISOString().split('T')[0],
+        recommendations: [
+          {
+            category: 'Cost' as const,
+            impact: 'Medium' as const,
+            title: 'Lifecycle Policy Optimization',
+            description: `Based on inventory analysis, ${ageAnalysis.oldObjectsCount} objects are older than 1 year. Consider implementing lifecycle policies to transition old objects to cheaper storage classes.`,
+            currentCostImpact: `${(ageAnalysis.oldObjectsTotalSize / (1024 * 1024 * 1024)).toFixed(2)} GB in standard storage`,
+            estimatedSavingsImpact: `$${ageAnalysis.potentialSavings.toFixed(2)} annually`,
+            objectCount: ageAnalysis.oldObjectsCount,
+            totalSize: `${(ageAnalysis.oldObjectsTotalSize / (1024 * 1024 * 1024)).toFixed(2)} GB`
+          }
+        ],
+        summary: {
+          overallAssessment: `Bucket contains ${inventoryData.totalObjects} objects with ${(inventoryData.totalSize / (1024 * 1024 * 1024)).toFixed(2)} GB total storage. Analysis shows potential for cost optimization through lifecycle policies.`,
+          findingsByPriority: { High: 0, Medium: 1, Low: 0 },
+          findingsByCategory: { Storage: 1, Security: 0, Cost: 1, Performance: 0, Other: 0 },
+          securityVulnerabilitiesCount: 0,
+          costOptimizationOpportunitiesCount: 1
+        },
+        statistics: {
+          totalObjectsProvidedForAnalysis: inventoryData.totalObjects,
+          totalSizeBytes: inventoryData.totalSize,
+          storageClassBreakdown: this.buildStorageClassBreakdown(inventoryData),
+          lastModified: inventoryData.reportDate.toISOString()
+        }
+      };
+    }
   }
 
   /**
@@ -923,7 +1046,7 @@ Make recommendations specific and actionable with quantified benefits where poss
 
     // Determine if we have meaningful metrics data
     const hasMetricsData = bucketMetrics.sizeBytes > 0 || bucketMetrics.objectCount > 0;
-    const metricsStatus = hasMetricsData 
+    const metricsStatus = hasMetricsData
       ? `Available - ${sizeGB.toFixed(2)} GB, ${bucketMetrics.objectCount} objects`
       : 'Not available - bucket may be empty or recently created';
 
@@ -956,13 +1079,142 @@ For recommendations that require inventory data, use titles like:
 Mark cost estimates as "Awaiting inventory reports for detailed analysis" where object-level data is needed.
 ${!hasMetricsData ? 'If the bucket appears empty, focus on setup and configuration recommendations.' : ''}`;
 
-    const result = await generateObject({
-      model: google('gemini-1.5-pro'),
-      schema: S3BucketAnalysisSchema,
-      prompt,
+    try {
+      const jsonPrompt = prompt + `
+
+Please respond with a valid JSON object that matches this structure:
+{
+  "bucketName": "${bucketName}",
+  "analysisDate": "${new Date().toISOString().split('T')[0]}",
+  "recommendations": [
+    {
+      "category": "Storage|Security|Cost|Performance|Other",
+      "impact": "High|Medium|Low",
+      "title": "string",
+      "description": "string",
+      "currentCostImpact": "string",
+      "estimatedSavingsImpact": "string",
+      "objectCount": ${bucketMetrics.objectCount},
+      "totalSize": "${(bucketMetrics.sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB"
+    }
+  ],
+  "summary": {
+    "overallAssessment": "string",
+    "findingsByPriority": {"High": 0, "Medium": 0, "Low": 0},
+    "findingsByCategory": {"Storage": 0, "Security": 0, "Cost": 0, "Performance": 0, "Other": 0},
+    "securityVulnerabilitiesCount": 0,
+    "costOptimizationOpportunitiesCount": 0
+  },
+  "statistics": {
+    "totalObjectsProvidedForAnalysis": ${bucketMetrics.objectCount}
+  }
+}
+
+Respond only with valid JSON, no additional text.`;
+
+      const result = await generateText({
+        model: google('gemini-1.5-pro'),
+        prompt: jsonPrompt,
+      });
+
+      const analysisResult = this.parseAIJsonResponse(result.text);
+
+      // Add the actual statistics from CloudWatch metrics
+      const analysisWithStats = {
+        ...analysisResult,
+        statistics: {
+          ...analysisResult.statistics,
+          totalSizeBytes: bucketMetrics.sizeBytes,
+          lastModified: new Date().toISOString()
+        }
+      };
+
+      return analysisWithStats;
+    } catch (error) {
+      console.warn(`    ⚠️  Schema validation failed, using fallback analysis:`, error);
+      
+      // Fallback analysis without schema validation
+      const isEmpty = bucketMetrics.sizeBytes === 0 && bucketMetrics.objectCount === 0;
+      
+      return {
+        bucketName,
+        analysisDate: new Date().toISOString().split('T')[0],
+        recommendations: isEmpty ? [
+          {
+            category: 'Cost' as const,
+            impact: 'Low' as const,
+            title: 'Empty Bucket Cleanup',
+            description: 'This bucket appears to be empty. Consider deleting it if no longer needed to reduce management overhead.',
+            currentCostImpact: 'Minimal storage costs',
+            estimatedSavingsImpact: '$0.50 monthly',
+            objectCount: 0,
+            totalSize: '0 GB'
+          }
+        ] : [
+          {
+            category: 'Storage' as const,
+            impact: 'Medium' as const,
+            title: 'Enable S3 Inventory for Advanced Analysis',
+            description: 'S3 Inventory reports are not available yet. Enable inventory reporting for detailed object-level analysis and optimization recommendations.',
+            currentCostImpact: 'Limited optimization without inventory data',
+            estimatedSavingsImpact: 'Awaiting inventory reports for detailed analysis',
+            objectCount: bucketMetrics.objectCount,
+            totalSize: `${(bucketMetrics.sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+          }
+        ],
+        summary: {
+          overallAssessment: isEmpty 
+            ? 'Bucket appears to be empty and may be a candidate for deletion.'
+            : `Bucket contains ${bucketMetrics.objectCount} objects with ${(bucketMetrics.sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB storage. Advanced analysis requires inventory reports.`,
+          findingsByPriority: { High: 0, Medium: isEmpty ? 0 : 1, Low: isEmpty ? 1 : 0 },
+          findingsByCategory: { Storage: isEmpty ? 0 : 1, Security: 0, Cost: isEmpty ? 1 : 0, Performance: 0, Other: 0 },
+          securityVulnerabilitiesCount: 0,
+          costOptimizationOpportunitiesCount: 1
+        },
+        statistics: {
+          totalObjectsProvidedForAnalysis: bucketMetrics.objectCount,
+          totalSizeBytes: bucketMetrics.sizeBytes,
+          lastModified: new Date().toISOString()
+        }
+      };
+    }
+  }
+
+  /**
+   * Clean AI response text to handle markdown code blocks and parse JSON
+   */
+  private parseAIJsonResponse(responseText: string): any {
+    let cleanedText = responseText.trim();
+    
+    // Remove markdown code block markers
+    if (cleanedText.startsWith('```json')) {
+      cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (cleanedText.startsWith('```')) {
+      cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+    
+    // Remove any leading/trailing whitespace
+    cleanedText = cleanedText.trim();
+    
+    return JSON.parse(cleanedText);
+  }
+
+  /**
+   * Build storage class breakdown from inventory data
+   */
+  private buildStorageClassBreakdown(inventoryData: InventoryReport): { [key: string]: { objectCount: number; sizeBytes: number } } {
+    const breakdown: { [key: string]: { objectCount: number; sizeBytes: number } } = {};
+
+    inventoryData.objects.forEach(obj => {
+      const storageClass = obj.storageClass || 'STANDARD';
+      if (!breakdown[storageClass]) {
+        breakdown[storageClass] = { objectCount: 0, sizeBytes: 0 };
+      }
+      breakdown[storageClass].objectCount++;
+      breakdown[storageClass].sizeBytes += obj.size;
     });
 
-    return result.object;
+    return breakdown;
   }
 
   /**

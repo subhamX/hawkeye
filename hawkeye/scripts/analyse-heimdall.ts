@@ -179,7 +179,7 @@ class HeimdallAnalysisEngine {
 
     const allRecommendations: S3Recommendation[] = [];
     const bucketSummaries: BucketSummary[] = [];
-    let totalStorageGB = 0;
+    let totalStorageBytes = 0;
     let totalObjectCount = 0;
     let combinedAgeAnalysis: any = null;
     let combinedParquetAnalysis: any = null;
@@ -195,22 +195,26 @@ class HeimdallAnalysisEngine {
 
         // Extract actual metrics from bucket analysis
         const bucketObjectCount = bucketAnalysis.statistics.totalObjectsProvidedForAnalysis || 0;
-        const bucketSizeGB = bucketAnalysis.statistics.totalSizeGB || 0;
+        const bucketSizeBytes = bucketAnalysis.statistics.totalSizeBytes || 0; // Already in bytes
         
         totalObjectCount += bucketObjectCount;
-        totalStorageGB += bucketSizeGB;
+        totalStorageBytes += bucketSizeBytes;
 
         // Create bucket summary
         const isEmpty = bucketObjectCount === 0;
+        
+        // Storage class breakdown is already in bytes
+        const storageClassesInBytes = bucketAnalysis.statistics.storageClassBreakdown || {};
+
         bucketSummaries.push({
           bucketName: bucketConfig.bucketName,
           region: bucketConfig.region,
           objectCount: bucketObjectCount,
-          totalSizeGB: bucketSizeGB,
+          totalSizeBytes: bucketSizeBytes,
           isEmpty,
           recommendDeletion: isEmpty,
           lastModified: bucketAnalysis.statistics.lastModified,
-          storageClasses: bucketAnalysis.statistics.storageClassBreakdown || {}
+          storageClasses: storageClassesInBytes
         });
 
         // Convert AI analysis to our recommendation format
@@ -304,7 +308,7 @@ class HeimdallAnalysisEngine {
           bucketName: bucketConfig.bucketName,
           region: bucketConfig.region,
           objectCount: 0,
-          totalSizeGB: 0,
+          totalSizeBytes: 0,
           isEmpty: true,
           recommendDeletion: false, // Don't recommend deletion if we couldn't analyze
           storageClasses: {}
@@ -318,7 +322,7 @@ class HeimdallAnalysisEngine {
       .insert(s3AnalysisResults)
       .values({
         analysisRunId: job.id,
-        totalStorageGB: totalStorageGB.toString(),
+        totalStorageBytes: totalStorageBytes.toString(),
         totalObjectCount,
         potentialSavings: totalSavings.toString(),
         recommendations: allRecommendations,

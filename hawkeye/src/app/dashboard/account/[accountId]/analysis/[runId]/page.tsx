@@ -23,6 +23,7 @@ import {
   Archive,
   HardDrive,
 } from 'lucide-react';
+import { formatBytesToMB, formatNumber, formatCurrency } from '@/lib/utils/format';
 import S3BucketChart from '@/components/analysis/s3-bucket-chart';
 import StorageClassDistribution from '@/components/analysis/storage-class-distribution';
 import AgeAnalysisChart from '@/components/analysis/age-analysis-chart';
@@ -63,14 +64,7 @@ export default async function AnalysisDetailsPage({
     ec2Results,
   } = analysisData;
 
-  const formatCurrency = (amount: number) => 
-    new Intl.NumberFormat('en-US', { 
-      style: 'currency', 
-      currency: 'USD' 
-    }).format(amount);
 
-  const formatNumber = (num: number) => 
-    new Intl.NumberFormat('en-US').format(num);
 
   return (
     <ProtectedRoute>
@@ -134,7 +128,7 @@ export default async function AnalysisDetailsPage({
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold">
-                        {parseFloat(s3Results.totalStorageGB || '0').toFixed(2)} GB
+                        {formatBytesToMB(parseFloat(s3Results.totalStorageBytes || '0'))}
                       </div>
                       <p className="text-xs text-muted-foreground">
                         Across {s3Results.bucketSummaries?.length || 0} buckets

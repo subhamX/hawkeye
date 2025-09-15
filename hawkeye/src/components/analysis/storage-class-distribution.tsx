@@ -2,6 +2,7 @@
 
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import type { BucketSummary } from '../../../drizzle-db/schema/app';
+import { formatBytesToMB, bytesToMB } from '@/lib/utils/format';
 
 interface StorageClassDistributionProps {
   buckets: BucketSummary[];
@@ -19,15 +20,15 @@ const STORAGE_CLASS_COLORS = {
 
 export default function StorageClassDistribution({ buckets }: StorageClassDistributionProps) {
   // Aggregate storage class data across all buckets
-  const storageClassTotals: { [key: string]: { sizeGB: number; objectCount: number } } = {};
+  const storageClassTotals: { [key: string]: { sizeBytes: number; objectCount: number } } = {};
 
   buckets.forEach(bucket => {
     if (bucket.storageClasses) {
       Object.entries(bucket.storageClasses).forEach(([storageClass, data]) => {
         if (!storageClassTotals[storageClass]) {
-          storageClassTotals[storageClass] = { sizeGB: 0, objectCount: 0 };
+          storageClassTotals[storageClass] = { sizeBytes: 0, objectCount: 0 };
         }
-        storageClassTotals[storageClass].sizeGB += data.sizeGB;
+        storageClassTotals[storageClass].sizeBytes += data.sizeBytes;
         storageClassTotals[storageClass].objectCount += data.objectCount;
       });
     }
@@ -35,7 +36,7 @@ export default function StorageClassDistribution({ buckets }: StorageClassDistri
 
   const data = Object.entries(storageClassTotals).map(([storageClass, totals]) => ({
     name: storageClass.replace(/_/g, ' '),
-    value: totals.sizeGB,
+    value: bytesToMB(totals.sizeBytes),
     objectCount: totals.objectCount,
     color: STORAGE_CLASS_COLORS[storageClass as keyof typeof STORAGE_CLASS_COLORS] || '#6b7280',
   })).filter(item => item.value > 0);
@@ -47,7 +48,7 @@ export default function StorageClassDistribution({ buckets }: StorageClassDistri
         <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
           <p className="font-medium">{data.name}</p>
           <p className="text-sm text-muted-foreground">
-            Size: {data.value.toFixed(2)} GB
+            Size: {data.value.toFixed(2)} MB
           </p>
           <p className="text-sm text-muted-foreground">
             Objects: {data.objectCount.toLocaleString()}

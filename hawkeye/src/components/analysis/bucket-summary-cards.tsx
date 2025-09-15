@@ -12,22 +12,13 @@ import {
   Calendar,
 } from 'lucide-react';
 import type { BucketSummary } from '../../../drizzle-db/schema/app';
+import { formatBytesToMB, formatNumber } from '@/lib/utils/format';
 
 interface BucketSummaryCardsProps {
   buckets: BucketSummary[];
 }
 
 export default function BucketSummaryCards({ buckets }: BucketSummaryCardsProps) {
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  const formatNumber = (num: number) => 
-    new Intl.NumberFormat('en-US').format(num);
 
   const emptyBuckets = buckets.filter(b => b.isEmpty);
   const nonEmptyBuckets = buckets.filter(b => !b.isEmpty);
@@ -85,7 +76,7 @@ export default function BucketSummaryCards({ buckets }: BucketSummaryCardsProps)
                   <Database className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <div className="text-sm font-medium">
-                      {bucket.totalSizeGB.toFixed(2)} GB
+                      {formatBytesToMB(bucket.totalSizeBytes)}
                     </div>
                     <div className="text-xs text-muted-foreground">Storage</div>
                   </div>
@@ -119,7 +110,7 @@ export default function BucketSummaryCards({ buckets }: BucketSummaryCardsProps)
                         variant="secondary" 
                         className="text-xs"
                       >
-                        {storageClass.replace(/_/g, ' ')}: {data.sizeGB.toFixed(1)}GB
+                        {storageClass.replace(/_/g, ' ')}: {formatBytesToMB(data.sizeBytes)}
                       </Badge>
                     ))}
                   </div>
@@ -165,7 +156,7 @@ export default function BucketSummaryCards({ buckets }: BucketSummaryCardsProps)
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold">
-              {buckets.reduce((sum, b) => sum + b.totalSizeGB, 0).toFixed(2)} GB
+              {formatBytesToMB(buckets.reduce((sum, b) => sum + b.totalSizeBytes, 0))}
             </div>
             <p className="text-xs text-muted-foreground">Total Storage</p>
           </CardContent>

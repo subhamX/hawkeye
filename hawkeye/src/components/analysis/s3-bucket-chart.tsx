@@ -2,6 +2,7 @@
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import type { BucketSummary } from '../../../drizzle-db/schema/app';
+import { formatBytesToMB, bytesToMB } from '@/lib/utils/format';
 
 interface S3BucketChartProps {
   buckets: BucketSummary[];
@@ -13,10 +14,10 @@ export default function S3BucketChart({ buckets }: S3BucketChartProps) {
       ? bucket.bucketName.substring(0, 20) + '...' 
       : bucket.bucketName,
     fullName: bucket.bucketName,
-    sizeGB: parseFloat(bucket.totalSizeGB.toString()),
+    sizeMB: bytesToMB(bucket.totalSizeBytes),
     objectCount: bucket.objectCount,
     isEmpty: bucket.isEmpty,
-  })).sort((a, b) => b.sizeGB - a.sizeGB);
+  })).sort((a, b) => b.sizeMB - a.sizeMB);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -25,7 +26,7 @@ export default function S3BucketChart({ buckets }: S3BucketChartProps) {
         <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
           <p className="font-medium">{data.fullName}</p>
           <p className="text-sm text-muted-foreground">
-            Size: {data.sizeGB.toFixed(2)} GB
+            Size: {data.sizeMB.toFixed(2)} MB
           </p>
           <p className="text-sm text-muted-foreground">
             Objects: {data.objectCount.toLocaleString()}
@@ -62,7 +63,7 @@ export default function S3BucketChart({ buckets }: S3BucketChartProps) {
           <YAxis className="text-xs fill-muted-foreground" />
           <Tooltip content={<CustomTooltip />} />
           <Bar 
-            dataKey="sizeGB" 
+            dataKey="sizeMB" 
             fill="hsl(var(--primary))"
             radius={[4, 4, 0, 0]}
           />
