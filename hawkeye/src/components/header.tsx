@@ -8,12 +8,7 @@ import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'motion/react'
 import { ThemeToggle } from '@/components/theme-toggle'
 
-const menuItems = [
-    { name: 'Dashboard', href: '/dashboard' },
-    { name: 'Analytics', href: '/analytics' },
-    { name: 'Reports', href: '/reports' },
-    { name: 'Settings', href: '/settings' },
-]
+
 
 export const HeroHeader = () => {
     const [menuState, setMenuState] = React.useState(false)
@@ -86,31 +81,6 @@ export const HeroHeader = () => {
                             </motion.button>
                         </div>
 
-                        <div className="absolute inset-0 m-auto hidden size-fit lg:block">
-                            <ul className="flex gap-8 text-sm">
-                                {menuItems.map((item, index) => (
-                                    <motion.li 
-                                        key={index}
-                                        initial={{ opacity: 0, y: -10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ duration: 0.3, delay: index * 0.1 }}
-                                    >
-                                        <Link
-                                            href={item.href}
-                                            className="text-secondary hover:text-primary relative block duration-300 group">
-                                            <span>{item.name}</span>
-                                            <motion.div
-                                                className="absolute -bottom-1 left-0 h-0.5 bg-gradient-to-r from-blue-500 to-purple-500"
-                                                initial={{ width: 0 }}
-                                                whileHover={{ width: '100%' }}
-                                                transition={{ duration: 0.3 }}
-                                            />
-                                        </Link>
-                                    </motion.li>
-                                ))}
-                            </ul>
-                        </div>
-
                         <AnimatePresence>
                             {(menuState || !menuState) && (
                                 <motion.div 
@@ -123,26 +93,6 @@ export const HeroHeader = () => {
                                     exit={{ opacity: 0, y: -20 }}
                                     transition={{ duration: 0.3 }}
                                 >
-                                    <div className="lg:hidden">
-                                        <ul className="space-y-6 text-base">
-                                            {menuItems.map((item, index) => (
-                                                <motion.li 
-                                                    key={index}
-                                                    initial={{ opacity: 0, x: -20 }}
-                                                    animate={{ opacity: 1, x: 0 }}
-                                                    transition={{ duration: 0.3, delay: index * 0.1 }}
-                                                >
-                                                    <Link
-                                                        href={item.href}
-                                                        className="text-secondary hover:text-primary block duration-300"
-                                                        onClick={() => setMenuState(false)}
-                                                    >
-                                                        <span>{item.name}</span>
-                                                    </Link>
-                                                </motion.li>
-                                            ))}
-                                        </ul>
-                                    </div>
                                     <motion.div 
                                         className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit md:items-center"
                                         initial={{ opacity: 0 }}

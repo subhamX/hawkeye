@@ -6,14 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
 import { signOutAction } from '@/lib/actions/auth';
-import { 
-  LayoutDashboard, 
-  Settings, 
-  Plus,
-  Menu,
-  X,
-  LogOut
-} from 'lucide-react';
+import { LayoutDashboard, Settings, Plus, Menu, X, LogOut } from 'lucide-react';
 import { useState } from 'react';
 
 interface DashboardLayoutProps {
@@ -30,14 +23,14 @@ interface DashboardLayoutProps {
   } | null;
 }
 
-export default function DashboardLayout({ 
-  children, 
-  title = "Dashboard",
+export default function DashboardLayout({
+  children,
+  title = 'Dashboard',
   subtitle,
   showBackButton = false,
-  backHref = "/dashboard",
-  backLabel = "Back to Dashboard",
-  user
+  backHref = '/dashboard',
+  backLabel = 'Back to Dashboard',
+  user,
 }: DashboardLayoutProps) {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -47,14 +40,14 @@ export default function DashboardLayout({
       name: 'Dashboard',
       href: '/dashboard',
       icon: LayoutDashboard,
-      current: pathname === '/dashboard'
+      current: pathname === '/dashboard',
     },
     {
       name: 'Add Account',
       href: '/onboarding',
       icon: Plus,
-      current: pathname === '/onboarding'
-    }
+      current: pathname === '/onboarding',
+    },
   ];
 
   return (
@@ -65,9 +58,11 @@ export default function DashboardLayout({
           <div className="flex justify-between h-16">
             <div className="flex items-center">
               <div className="flex-shrink-0 flex items-center">
-                <Logo size="sm" />
+                <Link href="/dashboard">
+                  <Logo size="sm" />
+                </Link>
               </div>
-              
+
               {/* Desktop Navigation */}
               <div className="hidden md:ml-8 md:flex md:space-x-1">
                 {navigation.map((item) => (
@@ -76,9 +71,10 @@ export default function DashboardLayout({
                     href={item.href}
                     className={`
                       inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors
-                      ${item.current 
-                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' 
-                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700/50'
+                      ${
+                        item.current
+                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                          : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700/50'
                       }
                     `}
                   >
@@ -110,9 +106,9 @@ export default function DashboardLayout({
                       </span>
                     </div>
                     <form action={signOutAction}>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        variant="outline"
+                        size="sm"
                         type="submit"
                         className="border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
                       >
@@ -123,7 +119,7 @@ export default function DashboardLayout({
                   </>
                 )}
               </div>
-              
+
               {/* Mobile menu button */}
               <div className="md:hidden">
                 <Button
@@ -152,9 +148,10 @@ export default function DashboardLayout({
                   href={item.href}
                   className={`
                     flex items-center px-3 py-2 rounded-lg text-base font-medium transition-colors
-                    ${item.current 
-                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' 
-                      : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700/50'
+                    ${
+                      item.current
+                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-700/50'
                     }
                   `}
                   onClick={() => setIsMobileMenuOpen(false)}
@@ -182,9 +179,9 @@ export default function DashboardLayout({
                       </div>
                     </div>
                     <form action={signOutAction}>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        variant="outline"
+                        size="sm"
                         type="submit"
                         className="border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700"
                       >
@@ -206,10 +203,13 @@ export default function DashboardLayout({
             <div className="flex-1 min-w-0">
               {showBackButton && (
                 <div className="mb-4">
-                  <Button variant="ghost" size="sm" asChild className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">
-                    <Link href={backHref}>
-                      ← {backLabel}
-                    </Link>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    asChild
+                    className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
+                  >
+                    <Link href={backHref}>← {backLabel}</Link>
                   </Button>
                 </div>
               )}
