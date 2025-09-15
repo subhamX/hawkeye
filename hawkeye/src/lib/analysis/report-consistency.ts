@@ -422,7 +422,7 @@ export class ReportConsistencyService {
    */
   private enhanceReportWithConsistency(
     newReport: string,
-    lastRecommendation: any,
+    lastRecommendation: S3Recommendation | EC2Recommendation | EBSRecommendation,
     wasSmoothed: boolean
   ): string {
     if (wasSmoothed) {

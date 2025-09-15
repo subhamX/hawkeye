@@ -13,10 +13,36 @@ import {
   Clock,
 } from 'lucide-react';
 
+interface S3Results {
+  potentialSavings?: string;
+  totalStorageGB?: string;
+  bucketSummaries?: Array<{
+    isEmpty: boolean;
+    [key: string]: unknown;
+  }>;
+  ageAnalysis?: {
+    ageDistribution: {
+      moreThan365Days: number;
+    };
+  };
+}
+
+interface EC2Results {
+  potentialSavings?: string;
+  unusedEBSVolumes?: unknown[];
+  utilizationRecommendations?: unknown[];
+}
+
+interface AnalysisRun {
+  startedAt: Date;
+  completedAt?: Date;
+  status: string;
+}
+
 interface AIInsightsProps {
-  s3Results?: any;
-  ec2Results?: any;
-  analysisRun: any;
+  s3Results?: S3Results;
+  ec2Results?: EC2Results;
+  analysisRun: AnalysisRun;
 }
 
 export default function AIInsights({ s3Results, ec2Results, analysisRun }: AIInsightsProps) {
@@ -26,7 +52,7 @@ export default function AIInsights({ s3Results, ec2Results, analysisRun }: AIIns
     // S3 Insights
     if (s3Results) {
       const totalSavings = parseFloat(s3Results.potentialSavings || '0');
-      const emptyBuckets = s3Results.bucketSummaries?.filter((b: any) => b.isEmpty) || [];
+      const emptyBuckets = s3Results.bucketSummaries?.filter((b) => b.isEmpty) || [];
       const totalStorage = parseFloat(s3Results.totalStorageGB || '0');
       
       if (totalSavings > 100) {

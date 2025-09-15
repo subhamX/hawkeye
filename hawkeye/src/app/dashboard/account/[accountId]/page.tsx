@@ -24,9 +24,9 @@ import {
 } from 'lucide-react';
 
 interface AccountDashboardPageProps {
-  params: {
+  params: Promise<{
     accountId: string;
-  };
+  }>;
 }
 
 export default async function AccountDashboardPage({
@@ -38,9 +38,11 @@ export default async function AccountDashboardPage({
     redirect('/auth/signin');
   }
 
+  const { accountId } = await params;
+
   // Get account dashboard data
   const dashboardData = await dashboardService.getAccountDashboard(
-    params.accountId,
+    accountId,
     session.user.id
   );
 
@@ -306,7 +308,7 @@ export default async function AccountDashboardPage({
                       </div>
 
                       <div className="flex items-center space-x-4">
-                        <Badge variant={getStatusColor(run.status) as any}>
+                        <Badge variant={getStatusColor(run.status)}>
                           {run.status}
                         </Badge>
                         {(run.totalSavings && run.totalSavings > 0) ? (

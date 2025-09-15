@@ -33,7 +33,7 @@ export const S3AnalysisSummarySchema = z.object({
 export const S3AnalysisStatisticsSchema = z.object({
   totalObjectsProvidedForAnalysis: z.number(),
   totalSizeBytes: z.number(),
-  storageClassBreakdown: z.record(z.object({
+  storageClassBreakdown: z.record(z.string(), z.object({
     objectCount: z.number(),
     sizeBytes: z.number()
   })).optional(),

@@ -44,7 +44,7 @@ export class EC2AnalysisService {
     try {
       const response = await this.ec2Client.send(new DescribeInstancesCommand({}));
       const instances: EC2Instance[] = [];
-      
+
       for (const reservation of response.Reservations || []) {
         for (const instance of reservation.Instances || []) {
           instances.push({
@@ -58,7 +58,7 @@ export class EC2AnalysisService {
           });
         }
       }
-      
+
       return instances;
     } catch (error) {
       console.error('Failed to get EC2 instances:', error);
@@ -110,24 +110,25 @@ export class EC2AnalysisService {
    * Analyze EC2 infrastructure using AI
    */
   private async analyzeEC2Infrastructure(
-    instances: EC2Instance[], 
-    volumes: EBSVolume[], 
+    instances: EC2Instance[],
+    volumes: EBSVolume[],
     securityGroups: SecurityGroup[]
   ): Promise<EC2InstanceAnalysis> {
     // Get CloudWatch metrics for instances (simplified)
     const instanceMetrics = await this.getInstanceMetrics(instances);
-    
+
     // Calculate current costs
     const totalInstanceCost = instances
-      .filter(i => i.state === 'running')
-      .reduce((sum, i) => sum + this.calculateInstanceMonthlyCost(i.instanceType), 0);
-    
+      .filter(i => i.state === 'running' && i.instanceType)
+      .reduce((sum, i) => sum + this.calculateInstanceMonthlyCost(i.instanceType!), 0);
+
     const totalVolumeCost = volumes
-      .reduce((sum, v) => sum + this.calculateVolumeMonthlyCost(v.volumeType, v.size || 0), 0);
-    
+      .filter(v => v.volumeType)
+      .reduce((sum, v) => sum + this.calculateVolumeMonthlyCost(v.volumeType!, v.size || 0), 0);
+
     const unattachedVolumeCost = volumes
-      .filter(v => !v.attachments || v.attachments.length === 0)
-      .reduce((sum, v) => sum + this.calculateVolumeMonthlyCost(v.volumeType, v.size || 0), 0);
+      .filter(v => (!v.attachments || v.attachments.length === 0) && v.volumeType)
+      .reduce((sum, v) => sum + this.calculateVolumeMonthlyCost(v.volumeType!, v.size || 0), 0);
 
     // Calculate GP2 to GP3 migration savings
     const gp2Volumes = volumes.filter(v => v.volumeType === 'gp2');
@@ -137,15 +138,15 @@ export class EC2AnalysisService {
         const newCost = this.calculateVolumeMonthlyCost('gp3', v.size || 0);
         return sum + (currentCost - newCost);
       }, 0);
-    
+
     // Calculate right-sizing opportunities
     const rightSizingOpportunities = instances
-      .filter(i => i.state === 'running' && instanceMetrics[i.instanceId])
+      .filter(i => i.state === 'running' && i.instanceId && i.instanceType && instanceMetrics[i.instanceId])
       .map(i => ({
         instanceId: i.instanceId,
         instanceType: i.instanceType,
-        avgCPU: instanceMetrics[i.instanceId].avgCPUUtilization,
-        rightSizing: this.suggestRightSizing(i.instanceType, instanceMetrics[i.instanceId].avgCPUUtilization)
+        avgCPU: instanceMetrics[i.instanceId!].avgCPUUtilization,
+        rightSizing: this.suggestRightSizing(i.instanceType!, instanceMetrics[i.instanceId!].avgCPUUtilization)
       }))
       .filter(i => i.rightSizing);
 
@@ -153,16 +154,16 @@ export class EC2AnalysisService {
       .reduce((sum, opp) => sum + (opp.rightSizing?.savings || 0), 0);
 
     // Calculate Reserved Instance opportunities
-    const longRunningInstances = instances.filter(i => i.state === 'running');
+    const longRunningInstances = instances.filter(i => i.state === 'running' && i.instanceType);
     const totalReservedInstanceSavings = longRunningInstances
-      .reduce((sum, i) => sum + this.calculateReservedInstanceSavings(i.instanceType), 0);
+      .reduce((sum, i) => sum + this.calculateReservedInstanceSavings(i.instanceType!), 0);
 
     console.log(`💰 Current monthly costs: Instances $${totalInstanceCost.toFixed(2)}, Volumes $${totalVolumeCost.toFixed(2)}`);
     console.log(`💸 Unattached volume waste: $${unattachedVolumeCost.toFixed(2)}/month`);
     console.log(`📉 Right-sizing potential: $${totalRightSizingSavings.toFixed(2)}/month`);
     console.log(`🏦 Reserved Instance potential: $${totalReservedInstanceSavings.toFixed(2)}/month`);
     console.log(`💾 GP2→GP3 migration savings: $${gp2ToGp3Savings.toFixed(2)}/month`);
-    
+
     const prompt = `You are a senior AWS cost optimization consultant with 10+ years of experience. Analyze the EC2/EBS infrastructure and provide aggressive, high-confidence cost optimization recommendations with immediate financial impact.
 
 CRITICAL COST ANALYSIS DATA:
@@ -253,7 +254,7 @@ Security Groups: ${JSON.stringify(securityGroups.slice(0, 5), null, 2)}`;
       'r5.large': 91.98,
       'r5.xlarge': 183.96,
     };
-    
+
     return pricing[instanceType] || 50; // Default estimate for unknown types
   }
 
@@ -271,7 +272,7 @@ Security Groups: ${JSON.stringify(securityGroups.slice(0, 5), null, 2)}`;
       'sc1': 0.025,
       'standard': 0.05
     };
-    
+
     const pricePerGB = pricing[volumeType] || 0.10;
     return sizeGB * pricePerGB;
   }
@@ -303,7 +304,7 @@ Security Groups: ${JSON.stringify(securityGroups.slice(0, 5), null, 2)}`;
         'r5.xlarge': 'r5.large',
         'r5.large': 'm5.large'
       };
-      
+
       const recommended = downsizeMap[instanceType];
       if (recommended) {
         return {
@@ -319,7 +320,7 @@ Security Groups: ${JSON.stringify(securityGroups.slice(0, 5), null, 2)}`;
         'c5.xlarge': 'c5.large',
         'r5.xlarge': 'r5.large'
       };
-      
+
       const recommended = downsizeMap[instanceType];
       if (recommended) {
         return {
@@ -328,7 +329,7 @@ Security Groups: ${JSON.stringify(securityGroups.slice(0, 5), null, 2)}`;
         };
       }
     }
-    
+
     return null;
   }
 
@@ -346,13 +347,13 @@ Security Groups: ${JSON.stringify(securityGroups.slice(0, 5), null, 2)}`;
    */
   private async getInstanceMetrics(instances: EC2Instance[]): Promise<InstanceMetrics> {
     const metrics: InstanceMetrics = {};
-    
+
     // Get CPU utilization for running instances (last 7 days)
     const endTime = new Date();
     const startTime = new Date(endTime.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
+
     for (const instance of instances.slice(0, 5)) { // Limit to avoid rate limits
-      if (instance.state === 'running') {
+      if (instance.state === 'running' && instance.instanceId) {
         try {
           const response = await this.cloudWatchClient.send(new GetMetricStatisticsCommand({
             Namespace: 'AWS/EC2',
@@ -368,18 +369,26 @@ Security Groups: ${JSON.stringify(securityGroups.slice(0, 5), null, 2)}`;
             Period: 3600, // 1 hour
             Statistics: ['Average']
           }));
-          
-          const avgCPU = response.Datapoints?.reduce((sum, dp) => sum + (dp.Average || 0), 0) / (response.Datapoints?.length || 1);
-          metrics[instance.instanceId] = {
-            avgCPUUtilization: avgCPU || 0
-          };
+
+          const datapoints = response.Datapoints || [];
+          const avgCPU = datapoints.length > 0
+            ? datapoints.reduce((sum, dp) => sum + (dp.Average || 0), 0) / datapoints.length
+            : 0;
+
+          if (instance.instanceId) {
+            metrics[instance.instanceId] = {
+              avgCPUUtilization: avgCPU
+            };
+          }
         } catch (error) {
           console.error(`Failed to get metrics for ${instance.instanceId}:`, error);
-          metrics[instance.instanceId] = { avgCPUUtilization: 0 };
+          if (instance.instanceId) {
+            metrics[instance.instanceId] = { avgCPUUtilization: 0 };
+          }
         }
       }
     }
-    
+
     return metrics;
   }
 }

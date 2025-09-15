@@ -160,7 +160,7 @@ export async function updateAccountConfig(
     for (const [service, enabled] of Object.entries(config.enabledServices)) {
       await serviceConfigurationService.updateServiceConfiguration(
         accountId,
-        service as any,
+        service as 's3' | 'ec2' | 'ebs' | 'cloudformation',
         { isEnabled: enabled }
       );
     }

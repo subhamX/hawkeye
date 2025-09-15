@@ -41,7 +41,17 @@ export default function StorageClassDistribution({ buckets }: StorageClassDistri
     color: STORAGE_CLASS_COLORS[storageClass as keyof typeof STORAGE_CLASS_COLORS] || '#6b7280',
   })).filter(item => item.value > 0);
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ active, payload }: {
+    active?: boolean;
+    payload?: Array<{
+      payload: {
+        name: string;
+        value: number;
+        objectCount: number;
+        color: string;
+      };
+    }>;
+  }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
@@ -79,7 +89,7 @@ export default function StorageClassDistribution({ buckets }: StorageClassDistri
             outerRadius={80}
             fill="#8884d8"
             dataKey="value"
-            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+            label={({ name, value }) => `${name} ${((typeof value === 'number' ? value : Number(value)) * 100).toFixed(0)}%`}
           >
             {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={entry.color} />

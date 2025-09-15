@@ -10,28 +10,48 @@ export class AWSError extends Error {
   }
 }
 
-export function mapAWSError(error: any): AWSError {
+interface AWSSDKError {
+  name?: string;
+  message?: string;
+  $metadata?: {
+    httpStatusCode?: number;
+    requestId?: string;
+  };
+  $service?: string;
+}
+
+export function mapAWSError(error: unknown): AWSError {
   if (error instanceof AWSError) {
     return error;
   }
 
   // Handle AWS SDK errors
-  if (error.$metadata) {
-    const awsError = error as any;
+  if (typeof error === 'object' && error !== null && '$metadata' in error) {
+    const awsError = error as AWSSDKError;
     return new AWSError(
-      getUserFriendlyMessage(awsError.name, awsError.message),
+      getUserFriendlyMessage(awsError.name || 'UnknownError', awsError.message || ''),
       awsError.name,
       awsError.$service,
-      error
+      error as unknown as Error
     );
   }
 
   // Handle generic errors
+  if (error instanceof Error) {
+    return new AWSError(
+      error.message || 'An unknown AWS error occurred',
+      'UnknownError',
+      undefined,
+      error
+    );
+  }
+
+  // Handle unknown error types
   return new AWSError(
-    error.message || 'An unknown AWS error occurred',
+    'An unknown AWS error occurred',
     'UnknownError',
     undefined,
-    error
+    undefined
   );
 }
 

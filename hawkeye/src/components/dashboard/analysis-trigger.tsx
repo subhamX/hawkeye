@@ -67,7 +67,7 @@ export default function AnalysisTrigger({
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
     switch (status) {
       case 'completed': return 'default';
       case 'running': return 'secondary';
@@ -86,7 +86,7 @@ export default function AnalysisTrigger({
         <CardTitle className="flex items-center justify-between text-slate-900 dark:text-white">
           <span>Analysis Control</span>
           {currentStatus && (
-            <Badge variant={getStatusColor(currentStatus) as any}>
+            <Badge variant={getStatusColor(currentStatus)}>
               <span className="flex items-center gap-1">
                 {getStatusIcon(currentStatus)}
                 {currentStatus}

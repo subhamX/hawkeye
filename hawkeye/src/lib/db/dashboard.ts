@@ -115,7 +115,7 @@ export class DashboardService {
 
         lastAnalysisRun = {
           id: latestRun.id,
-          status: latestRun.status as any,
+          status: latestRun.status as 'pending' | 'running' | 'completed' | 'failed',
           startedAt: latestRun.startedAt,
           completedAt: latestRun.completedAt || undefined,
           s3Savings,
@@ -183,7 +183,8 @@ export class DashboardService {
     // Set enabled services
     services.forEach(service => {
       if (service.serviceType in servicesBreakdown) {
-        (servicesBreakdown as any)[service.serviceType].enabled = service.isEnabled;
+        const serviceType = service.serviceType as keyof typeof servicesBreakdown;
+        servicesBreakdown[serviceType].enabled = service.isEnabled;
       }
     });
 
@@ -250,7 +251,7 @@ export class DashboardService {
 
       analysisRunSummaries.push({
         id: run.id,
-        status: run.status as any,
+        status: run.status as 'pending' | 'running' | 'completed' | 'failed',
         startedAt: run.startedAt,
         completedAt: run.completedAt || undefined,
         s3Savings,

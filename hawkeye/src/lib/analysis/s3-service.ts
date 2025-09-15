@@ -122,7 +122,7 @@ export class S3AnalysisService {
       if (error instanceof Error && error.name === 'NoSuchBucket') {
         throw error;
       }
-      
+
       console.warn(`    ⚠️  Could not determine bucket region for ${bucketName}, using assumed region: ${assumedRegion}`);
       return assumedRegion;
     }
@@ -320,20 +320,25 @@ export class S3AnalysisService {
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'NoSuchBucket') {
         console.log(`    📦 Artifacts bucket ${artifactsBucketName} does not exist, creating in region: ${this.defaultRegion}`);
-        
+
         try {
           const defaultClient = this.s3Clients.get(this.defaultRegion)!;
-          const createBucketParams: any = {
+          const createBucketParams: {
+            Bucket: string;
+            CreateBucketConfiguration?: {
+              LocationConstraint: BucketLocationConstraint;
+            };
+          } = {
             Bucket: artifactsBucketName
           };
-          
+
           // Only add CreateBucketConfiguration for regions other than us-east-1
           if (this.defaultRegion !== 'us-east-1') {
             createBucketParams.CreateBucketConfiguration = {
               LocationConstraint: this.defaultRegion as BucketLocationConstraint
             };
           }
-          
+
           await defaultClient.send(new CreateBucketCommand(createBucketParams));
           artifactsBucketRegion = this.defaultRegion;
           console.log(`    ✅ Successfully created artifacts bucket: ${artifactsBucketName}`);
@@ -385,7 +390,7 @@ export class S3AnalysisService {
       if (error instanceof Error && (
         error.message.includes('PermanentRedirect') ||
         error.name === 'PermanentRedirect' ||
-        (error as any).Code === 'PermanentRedirect'
+        ('Code' in error && (error as { Code?: string }).Code === 'PermanentRedirect')
       )) {
         console.log(`    🔄 PermanentRedirect detected, finding actual region for ${bucketName}...`);
         const detectedRegion = await this.detectBucketRegion(bucketName, error.message);
@@ -464,7 +469,7 @@ export class S3AnalysisService {
       if (error instanceof Error && (
         error.message.includes('PermanentRedirect') ||
         error.name === 'PermanentRedirect' ||
-        (error as any).Code === 'PermanentRedirect'
+        ('Code' in error && (error as { Code?: string }).Code === 'PermanentRedirect')
       )) {
         console.log(`    🔄 PermanentRedirect detected, finding actual region for ${bucketName}...`);
         const detectedRegion = await this.detectBucketRegion(bucketName, error.message);
@@ -723,19 +728,19 @@ export class S3AnalysisService {
     const iaCostPerGB = 0.0125; // $0.0125 per GB/month for IA (45% savings)
     const glacierIRCostPerGB = 0.0074; // $0.0074 per GB/month for Glacier IR (68% savings)
     const glacierCostPerGB = 0.004; // $0.004 per GB/month for Glacier (83% savings)
-    
+
     const oldObjectsGB = oldObjectsTotalSize / (1024 * 1024 * 1024);
     const totalObjectsGB = inventoryData.totalSize / (1024 * 1024 * 1024);
-    
+
     // Calculate tiered savings based on age distribution
     const iaObjectsGB = (ageDistribution.between30And90Days / inventoryData.objects.length) * totalObjectsGB;
     const glacierIRObjectsGB = (ageDistribution.between90And365Days / inventoryData.objects.length) * totalObjectsGB;
     const glacierObjectsGB = (ageDistribution.moreThan365Days / inventoryData.objects.length) * totalObjectsGB;
-    
+
     const iaSavings = iaObjectsGB * (standardCostPerGB - iaCostPerGB) * 12;
     const glacierIRSavings = glacierIRObjectsGB * (standardCostPerGB - glacierIRCostPerGB) * 12;
     const glacierSavings = glacierObjectsGB * (standardCostPerGB - glacierCostPerGB) * 12;
-    
+
     const potentialSavings = iaSavings + glacierIRSavings + glacierSavings; // Total annual savings
 
     const recommendedLifecyclePolicy: LifecyclePolicyRecommendation = {
@@ -1024,10 +1029,10 @@ Respond only with valid JSON, no additional text.`;
         prompt: jsonPrompt,
       });
 
-      const analysisResult = this.parseAIJsonResponse(result.text);
+      const analysisResult = this.parseAIJsonResponse(result.text) as S3BucketAnalysis;
 
       // Add the actual statistics from inventory data
-      const analysisWithStats = {
+      const analysisWithStats: S3BucketAnalysis = {
         ...analysisResult,
         statistics: {
           ...analysisResult.statistics,
@@ -1162,10 +1167,10 @@ Respond only with valid JSON, no additional text.`;
         prompt: jsonPrompt,
       });
 
-      const analysisResult = this.parseAIJsonResponse(result.text);
+      const analysisResult = this.parseAIJsonResponse(result.text) as S3BucketAnalysis;
 
       // Add the actual statistics from CloudWatch metrics
-      const analysisWithStats = {
+      const analysisWithStats: S3BucketAnalysis = {
         ...analysisResult,
         statistics: {
           ...analysisResult.statistics,
@@ -1228,7 +1233,7 @@ Respond only with valid JSON, no additional text.`;
   /**
    * Clean AI response text to handle markdown code blocks and parse JSON
    */
-  private parseAIJsonResponse(responseText: string): any {
+  private parseAIJsonResponse(responseText: string): unknown {
     let cleanedText = responseText.trim();
 
     // Remove markdown code block markers

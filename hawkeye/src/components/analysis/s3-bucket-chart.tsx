@@ -19,7 +19,19 @@ export default function S3BucketChart({ buckets }: S3BucketChartProps) {
     isEmpty: bucket.isEmpty,
   })).sort((a, b) => b.sizeMB - a.sizeMB);
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: {
+    active?: boolean;
+    payload?: Array<{
+      payload: {
+        name: string;
+        fullName: string;
+        sizeMB: number;
+        objectCount: number;
+        isEmpty: boolean;
+      };
+    }>;
+    label?: string;
+  }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (

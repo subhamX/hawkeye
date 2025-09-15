@@ -3,9 +3,11 @@ import { serviceConfigurations } from '../../../drizzle-db/schema';
 import { eq, and } from 'drizzle-orm';
 import type { ServiceConfig } from '../../../drizzle-db/schema/app';
 
+export type ServiceType = 's3' | 'ec2' | 'ebs' | 'cloudformation' | 'iam' | 'lambda';
+
 export interface CreateServiceConfigurationData {
   accountId: string;
-  serviceType: 's3' | 'ec2' | 'ebs' | 'cloudformation' | 'iam' | 'lambda';
+  serviceType: ServiceType;
   isEnabled: boolean;
   configuration: ServiceConfig;
 }
@@ -63,7 +65,7 @@ export class ServiceConfigurationService {
    */
   async getServiceConfiguration(
     accountId: string, 
-    serviceType: string
+    serviceType: ServiceType
   ): Promise<ServiceConfigurationData | null> {
     const [config] = await db
       .select()
@@ -91,7 +93,7 @@ export class ServiceConfigurationService {
    */
   async updateServiceConfiguration(
     accountId: string,
-    serviceType: string,
+    serviceType: ServiceType,
     updates: Partial<CreateServiceConfigurationData>
   ) {
     const [config] = await db
@@ -112,7 +114,7 @@ export class ServiceConfigurationService {
   /**
    * Delete service configuration
    */
-  async deleteServiceConfiguration(accountId: string, serviceType: string) {
+  async deleteServiceConfiguration(accountId: string, serviceType: ServiceType) {
     await db
       .delete(serviceConfigurations)
       .where(and(
@@ -153,7 +155,7 @@ export class ServiceConfigurationService {
   /**
    * Check if a service is enabled for an account
    */
-  async isServiceEnabled(accountId: string, serviceType: string): Promise<boolean> {
+  async isServiceEnabled(accountId: string, serviceType: ServiceType): Promise<boolean> {
     const [config] = await db
       .select({ isEnabled: serviceConfigurations.isEnabled })
       .from(serviceConfigurations)

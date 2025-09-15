@@ -1,16 +1,16 @@
-'use client'
+'use client';
 
-import { motion } from 'motion/react'
-import { cn } from '@/lib/utils'
+import { motion } from 'motion/react';
+import { cn } from '@/lib/utils';
 
 interface TextEffectProps {
-  children: string
-  per?: 'word' | 'char' | 'line'
-  as?: keyof JSX.IntrinsicElements
-  className?: string
-  preset?: 'fade-in' | 'fade-in-blur' | 'slide-up' | 'slide-down'
-  speedSegment?: number
-  delay?: number
+  children: string;
+  per?: 'word' | 'char' | 'line';
+  as?: keyof React.JSX.IntrinsicElements;
+  className?: string;
+  preset?: 'fade-in' | 'fade-in-blur' | 'slide-up' | 'slide-down';
+  speedSegment?: number;
+  delay?: number;
 }
 
 export function TextEffect({
@@ -22,7 +22,12 @@ export function TextEffect({
   speedSegment = 0.1,
   delay = 0,
 }: TextEffectProps) {
-  const segments = per === 'word' ? children.split(' ') : per === 'char' ? children.split('') : [children]
+  const segments =
+    per === 'word'
+      ? children.split(' ')
+      : per === 'char'
+        ? children.split('')
+        : [children];
 
   const variants = {
     'fade-in': {
@@ -41,7 +46,7 @@ export function TextEffect({
       hidden: { opacity: 0, y: -20 },
       visible: { opacity: 1, y: 0 },
     },
-  }
+  };
 
   return (
     <Component className={className}>
@@ -63,5 +68,5 @@ export function TextEffect({
         </motion.span>
       ))}
     </Component>
-  )
+  );
 }

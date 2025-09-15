@@ -48,7 +48,8 @@ const mockEC2Recommendations: EC2Recommendation[] = [
     recommendationType: 'downsize',
     category: 'cost' as const,
     potentialSavings: 45.20,
-    aiGeneratedReport: 'Instance shows low CPU utilization and could be downsized to t3.medium.'
+    aiGeneratedReport: 'Instance shows low CPU utilization and could be downsized to t3.medium.',
+    confidence: 0.85
   }
 ];
 
@@ -59,7 +60,8 @@ const mockEBSRecommendations: EBSRecommendation[] = [
     volumeType: 'gp2',
     category: 'cost' as const,
     potentialSavings: 8.00,
-    aiGeneratedReport: 'Unused EBS volume that can be deleted.'
+    aiGeneratedReport: 'Unused EBS volume that can be deleted.',
+    confidence: 0.95
   }
 ];
 
@@ -128,7 +130,8 @@ const mockLastReport = {
         volumeType: 'gp2',
         category: 'cost' as const,
         potentialSavings: 10.00, // Different from new recommendation
-        aiGeneratedReport: 'Previous analysis of this volume.'
+        aiGeneratedReport: 'Previous analysis of this volume.',
+        confidence: 0.90
       }
     ],
     utilizationRecommendations: [
@@ -138,7 +141,8 @@ const mockLastReport = {
         recommendationType: 'downsize',
         category: 'cost' as const,
         potentialSavings: 40.00, // Different from new recommendation
-        aiGeneratedReport: 'Previous analysis of this instance.'
+        aiGeneratedReport: 'Previous analysis of this instance.',
+        confidence: 0.85
       }
     ],
     createdAt: new Date('2024-01-01')

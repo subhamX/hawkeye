@@ -64,7 +64,7 @@ export default function RecommendationsTable({ recommendations, type }: Recommen
     }
   };
 
-  const getRecommendationIcon = (rec: any) => {
+  const getRecommendationIcon = (rec: S3Recommendation | EC2Recommendation | EBSRecommendation) => {
     if (type === 's3') {
       const s3Rec = rec as S3Recommendation;
       if (s3Rec.recommendedStorageClass === 'DELETE') {
@@ -190,8 +190,8 @@ export default function RecommendationsTable({ recommendations, type }: Recommen
                 <div className="text-xs text-muted-foreground">per month</div>
               </TableCell>
               <TableCell>
-                <div className={`font-medium ${getConfidenceColor((rec as any).confidence || 0.85)}`}>
-                  {Math.round(((rec as any).confidence || 0.85) * 100)}%
+                <div className={`font-medium ${getConfidenceColor(('confidence' in rec ? rec.confidence : 0.85) || 0.85)}`}>
+                  {Math.round((('confidence' in rec ? rec.confidence : 0.85) || 0.85) * 100)}%
                 </div>
               </TableCell>
               <TableCell>
@@ -232,8 +232,8 @@ export default function RecommendationsTable({ recommendations, type }: Recommen
                         </div>
                         <div>
                           <h4 className="font-medium mb-1">Confidence</h4>
-                          <p className={`text-lg font-bold ${getConfidenceColor((rec as any).confidence || 0.85)}`}>
-                            {Math.round(((rec as any).confidence || 0.85) * 100)}%
+                          <p className={`text-lg font-bold ${getConfidenceColor(('confidence' in rec ? rec.confidence : 0.85) || 0.85)}`}>
+                            {Math.round((('confidence' in rec ? rec.confidence : 0.85) || 0.85) * 100)}%
                           </p>
                         </div>
                       </div>

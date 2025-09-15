@@ -198,7 +198,29 @@ export default function OnboardingPage() {
 
       {currentStep === 'complete' && (
         <OnboardingComplete
-          onboardingData={onboardingData}
+          onboardingData={{
+            awsAccount: onboardingData.awsAccount ? {
+              accountId: onboardingData.awsAccount.accountId,
+              roleArn: onboardingData.awsAccount.roleArn,
+              regions: onboardingData.awsAccount.regions,
+            } : undefined,
+            s3Config: onboardingData.s3Config ? {
+              enabled: onboardingData.s3Config.enabled,
+              selectedBuckets: onboardingData.s3Config.selectedBuckets,
+            } : undefined,
+            ec2Config: onboardingData.ec2Config ? {
+              enabled: onboardingData.ec2Config.enabled,
+              monitoredRegions: onboardingData.awsAccount?.regions || [],
+            } : undefined,
+            ebsConfig: onboardingData.ebsConfig ? {
+              enabled: onboardingData.ebsConfig.enabled,
+              monitoredRegions: onboardingData.awsAccount?.regions || [],
+            } : undefined,
+            cloudformationConfig: onboardingData.cloudformationConfig ? {
+              enabled: onboardingData.cloudformationConfig.enabled,
+              monitoredStacks: [],
+            } : undefined,
+          }}
           onFinish={handleFinish}
         />
       )}

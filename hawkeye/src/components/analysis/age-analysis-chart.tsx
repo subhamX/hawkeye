@@ -31,7 +31,17 @@ export default function AgeAnalysisChart({ ageAnalysis }: AgeAnalysisChartProps)
     },
   ];
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: {
+    active?: boolean;
+    payload?: Array<{
+      payload: {
+        name: string;
+        count: number;
+        color: string;
+      };
+    }>;
+    label?: string;
+  }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (

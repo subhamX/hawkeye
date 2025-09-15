@@ -1,12 +1,13 @@
 import { redirect } from 'next/navigation';
 
 interface RunPageProps {
-  params: {
+  params: Promise<{
     accountId: string;
-  };
+  }>;
 }
 
-export default function RunPage({ params }: RunPageProps) {
+export default async function RunPage({ params }: RunPageProps) {
+  const { accountId } = await params;
   // Redirect to the account dashboard where the analysis trigger is located
-  redirect(`/dashboard/account/${params.accountId}`);
+  redirect(`/dashboard/account/${accountId}`);
 }
