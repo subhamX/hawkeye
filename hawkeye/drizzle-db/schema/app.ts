@@ -81,8 +81,10 @@ export const s3AnalysisResults = pgTable('s3_analysis_result', {
     .notNull()
     .references(() => analysisRuns.id, { onDelete: 'cascade' }),
   totalStorageGB: decimal('totalStorageGB', { precision: 15, scale: 2 }),
+  totalObjectCount: integer('totalObjectCount'),
   potentialSavings: decimal('potentialSavings', { precision: 10, scale: 2 }),
   recommendations: jsonb('recommendations').$type<S3Recommendation[]>(),
+  bucketSummaries: jsonb('bucketSummaries').$type<BucketSummary[]>(),
   ageAnalysis: jsonb('ageAnalysis').$type<AgeAnalysisResult>(),
   parquetAnalysis: jsonb('parquetAnalysis').$type<ParquetAnalysisResult>(),
   partitioningAnalysis: jsonb('partitioningAnalysis').$type<PartitioningAnalysisResult>(),
@@ -131,6 +133,22 @@ export type S3Recommendation = {
   confidence: number;
   category: 'cost' | 'security' | 'general';
   aiGeneratedReport: string;
+};
+
+export type BucketSummary = {
+  bucketName: string;
+  region: string;
+  objectCount: number;
+  totalSizeGB: number;
+  isEmpty: boolean;
+  recommendDeletion: boolean;
+  lastModified?: Date;
+  storageClasses: {
+    [key: string]: {
+      objectCount: number;
+      sizeGB: number;
+    };
+  };
 };
 
 export type AgeAnalysisResult = {

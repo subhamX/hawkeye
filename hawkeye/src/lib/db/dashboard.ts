@@ -202,7 +202,7 @@ export class DashboardService {
         const s3Savings = Number(s3Result?.potentialSavings || 0);
         servicesBreakdown.s3.lastSavings = s3Savings;
         totalPotentialSavings += s3Savings;
-        
+
         if (s3Result?.recommendations) {
           recommendations.s3 = s3Result.recommendations as S3Recommendation[];
         }
@@ -216,7 +216,7 @@ export class DashboardService {
         const ec2Savings = Number(ec2Result?.potentialSavings || 0);
         servicesBreakdown.ec2.lastSavings = ec2Savings;
         totalPotentialSavings += ec2Savings;
-        
+
         if (ec2Result?.utilizationRecommendations) {
           recommendations.ec2 = ec2Result.utilizationRecommendations as EC2Recommendation[];
         }
@@ -282,6 +282,55 @@ export class DashboardService {
       lastRunDate,
       servicesBreakdown,
       recommendations,
+    };
+  }
+
+  /**
+   * Get detailed analysis results for a specific run
+   */
+  async getAnalysisDetails(runId: string, userId: string) {
+    // Get the analysis run and verify user access
+    const [analysisRun] = await db
+      .select({
+        run: analysisRuns,
+        account: awsAccounts,
+      })
+      .from(analysisRuns)
+      .innerJoin(awsAccounts, eq(analysisRuns.accountId, awsAccounts.id))
+      .where(and(
+        eq(analysisRuns.id, runId),
+        eq(awsAccounts.userId, userId)
+      ));
+
+    if (!analysisRun) {
+      return null;
+    }
+
+    // Get S3 analysis results if available
+    let s3Results = null;
+    if (analysisRun.run.s3ResultsId) {
+      const [s3Result] = await db
+        .select()
+        .from(s3AnalysisResults)
+        .where(eq(s3AnalysisResults.id, analysisRun.run.s3ResultsId));
+      s3Results = s3Result;
+    }
+
+    // Get EC2 analysis results if available
+    let ec2Results = null;
+    if (analysisRun.run.ec2ResultsId) {
+      const [ec2Result] = await db
+        .select()
+        .from(ec2AnalysisResults)
+        .where(eq(ec2AnalysisResults.id, analysisRun.run.ec2ResultsId));
+      ec2Results = ec2Result;
+    }
+
+    return {
+      analysisRun: analysisRun.run,
+      account: analysisRun.account,
+      s3Results,
+      ec2Results,
     };
   }
 }

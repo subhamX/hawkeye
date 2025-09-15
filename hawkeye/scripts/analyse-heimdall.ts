@@ -22,7 +22,8 @@ import {
 import type {
   S3Recommendation,
   EC2Recommendation,
-  EBSRecommendation
+  EBSRecommendation,
+  BucketSummary
 } from '../drizzle-db/schema';
 import { eq } from 'drizzle-orm';
 
@@ -177,7 +178,9 @@ class HeimdallAnalysisEngine {
     await s3Service.ensureS3Setup(job.monitoredBuckets, job.account.accountId);
 
     const allRecommendations: S3Recommendation[] = [];
+    const bucketSummaries: BucketSummary[] = [];
     let totalStorageGB = 0;
+    let totalObjectCount = 0;
     let combinedAgeAnalysis: any = null;
     let combinedParquetAnalysis: any = null;
     let combinedPartitioningAnalysis: any = null;
@@ -189,6 +192,26 @@ class HeimdallAnalysisEngine {
       try {
         const artifactsBucket = `hawkeye-${job.account.accountId}-artifacts`;
         const bucketAnalysis = await s3Service.analyzeBucket(bucketConfig.bucketName, bucketConfig.region, artifactsBucket);
+
+        // Extract actual metrics from bucket analysis
+        const bucketObjectCount = bucketAnalysis.statistics.totalObjectsProvidedForAnalysis || 0;
+        const bucketSizeGB = bucketAnalysis.statistics.totalSizeGB || 0;
+        
+        totalObjectCount += bucketObjectCount;
+        totalStorageGB += bucketSizeGB;
+
+        // Create bucket summary
+        const isEmpty = bucketObjectCount === 0;
+        bucketSummaries.push({
+          bucketName: bucketConfig.bucketName,
+          region: bucketConfig.region,
+          objectCount: bucketObjectCount,
+          totalSizeGB: bucketSizeGB,
+          isEmpty,
+          recommendDeletion: isEmpty,
+          lastModified: bucketAnalysis.statistics.lastModified,
+          storageClasses: bucketAnalysis.statistics.storageClassBreakdown || {}
+        });
 
         // Convert AI analysis to our recommendation format
         for (const rec of bucketAnalysis.recommendations) {
@@ -204,9 +227,9 @@ class HeimdallAnalysisEngine {
 
           allRecommendations.push({
             bucketName: bucketConfig.bucketName,
-            objectCount: rec.objectCount || 0,
+            objectCount: bucketObjectCount,
             currentStorageClass: 'STANDARD', // Default, would need more analysis
-            recommendedStorageClass: s3Service.extractRecommendedStorageClass(rec.description),
+            recommendedStorageClass: this.extractRecommendedStorageClass(rec.description),
             potentialSavings,
             confidence: rec.impact === 'High' ? 0.9 : rec.impact === 'Medium' ? 0.7 : 0.5,
             category,
@@ -214,13 +237,22 @@ class HeimdallAnalysisEngine {
           });
         }
 
-        // Use actual statistics from inventory analysis
-        totalStorageGB += bucketAnalysis.statistics.totalObjectsProvidedForAnalysis * 0.1; // Rough estimate
+        // Add empty bucket recommendation
+        if (isEmpty) {
+          allRecommendations.push({
+            bucketName: bucketConfig.bucketName,
+            objectCount: 0,
+            currentStorageClass: 'EMPTY',
+            recommendedStorageClass: 'DELETE',
+            potentialSavings: 0.50, // Small monthly cost for empty bucket
+            confidence: 0.95,
+            category: 'cost',
+            aiGeneratedReport: `Empty Bucket Cleanup: This bucket contains no objects and can be safely deleted to eliminate storage costs and reduce management overhead. Consider removing it if it's no longer needed.`
+          });
+        }
 
         // Store individual analysis results (for the first bucket, or combine if multiple)
         if (!combinedAgeAnalysis) {
-          // For now, just store the first bucket's analysis
-          // In a real implementation, you might want to combine results from multiple buckets
           combinedAgeAnalysis = {
             bucketName: 'Combined Analysis',
             oldObjectsCount: 0,
@@ -256,7 +288,7 @@ class HeimdallAnalysisEngine {
         if (!combinedPartitioningAnalysis) {
           combinedPartitioningAnalysis = {
             bucketName: 'Combined Analysis',
-            totalFiles: 0,
+            totalFiles: bucketObjectCount,
             directoriesWithTooManyFiles: [],
             recommendPartitioning: false,
             suggestedPartitioningStrategy: 'No partitioning issues detected',
@@ -266,6 +298,17 @@ class HeimdallAnalysisEngine {
 
       } catch (error) {
         console.error(`    ❌ Failed to analyze bucket ${bucketConfig.bucketName}:`, error);
+        
+        // Still create a summary for failed analysis
+        bucketSummaries.push({
+          bucketName: bucketConfig.bucketName,
+          region: bucketConfig.region,
+          objectCount: 0,
+          totalSizeGB: 0,
+          isEmpty: true,
+          recommendDeletion: false, // Don't recommend deletion if we couldn't analyze
+          storageClasses: {}
+        });
       }
     }
 
@@ -275,8 +318,11 @@ class HeimdallAnalysisEngine {
       .insert(s3AnalysisResults)
       .values({
         analysisRunId: job.id,
+        totalStorageGB: totalStorageGB.toString(),
+        totalObjectCount,
         potentialSavings: totalSavings.toString(),
         recommendations: allRecommendations,
+        bucketSummaries,
         ageAnalysis: combinedAgeAnalysis,
         parquetAnalysis: combinedParquetAnalysis,
         partitioningAnalysis: combinedPartitioningAnalysis,
@@ -284,6 +330,18 @@ class HeimdallAnalysisEngine {
       .returning();
 
     return result.id;
+  }
+
+  /**
+   * Extract recommended storage class from AI description
+   */
+  private extractRecommendedStorageClass(description: string): string {
+    const lowerDesc = description.toLowerCase();
+    if (lowerDesc.includes('glacier')) return 'GLACIER';
+    if (lowerDesc.includes('deep archive')) return 'DEEP_ARCHIVE';
+    if (lowerDesc.includes('infrequent access') || lowerDesc.includes('ia')) return 'STANDARD_IA';
+    if (lowerDesc.includes('one zone')) return 'ONEZONE_IA';
+    return 'STANDARD';
   }
 
   /**
