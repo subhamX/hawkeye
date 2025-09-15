@@ -78,7 +78,18 @@ export default function RecommendationsList({
     switch (rec.type) {
       case 'S3':
         const s3Rec = rec as S3Recommendation;
-        return `${s3Rec.bucketName} - Storage Class Optimization`;
+        const hasStorageClassChange = s3Rec.currentStorageClass && 
+          s3Rec.recommendedStorageClass && 
+          s3Rec.currentStorageClass !== s3Rec.recommendedStorageClass &&
+          s3Rec.recommendedStorageClass !== 'DELETE';
+        
+        if (s3Rec.recommendedStorageClass === 'DELETE') {
+          return `${s3Rec.bucketName} - Delete Unused Objects`;
+        } else if (hasStorageClassChange) {
+          return `${s3Rec.bucketName} - Storage Class Optimization`;
+        } else {
+          return `${s3Rec.bucketName} - Storage Optimization`;
+        }
       case 'EC2':
         const ec2Rec = rec as EC2Recommendation;
         return `${ec2Rec.instanceId} - ${ec2Rec.recommendationType}`;
@@ -94,7 +105,18 @@ export default function RecommendationsList({
     switch (rec.type) {
       case 'S3':
         const s3Rec = rec as S3Recommendation;
-        return `Change from ${s3Rec.currentStorageClass} to ${s3Rec.recommendedStorageClass} for ${s3Rec.objectCount} objects`;
+        const hasStorageClassChange = s3Rec.currentStorageClass && 
+          s3Rec.recommendedStorageClass && 
+          s3Rec.currentStorageClass !== s3Rec.recommendedStorageClass &&
+          s3Rec.recommendedStorageClass !== 'DELETE';
+        
+        if (s3Rec.recommendedStorageClass === 'DELETE') {
+          return `Remove ${s3Rec.objectCount.toLocaleString()} unused objects`;
+        } else if (hasStorageClassChange) {
+          return `Change from ${s3Rec.currentStorageClass} to ${s3Rec.recommendedStorageClass} for ${s3Rec.objectCount.toLocaleString()} objects`;
+        } else {
+          return `Optimize storage configuration for ${s3Rec.objectCount.toLocaleString()} objects`;
+        }
       case 'EC2':
         const ec2Rec = rec as EC2Recommendation;
         return `${ec2Rec.instanceType} instance optimization`;

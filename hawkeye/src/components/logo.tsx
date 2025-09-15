@@ -159,15 +159,7 @@ export const Logo = ({ className, uniColor, size = 'md' }: {
                         "font-bold bg-gradient-to-r from-slate-900 via-blue-900 to-slate-900 dark:from-white dark:via-blue-100 dark:to-white bg-clip-text text-transparent tracking-tight"
                     )}
                 >
-                    HAWKEYE
-                </motion.span>
-                <motion.span
-                    className="text-xs text-muted-foreground font-medium tracking-wider uppercase"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.3, delay: 0.5 }}
-                >
-                    AWS Monitor
+                    HawkEye
                 </motion.span>
             </motion.div>
         </motion.div>

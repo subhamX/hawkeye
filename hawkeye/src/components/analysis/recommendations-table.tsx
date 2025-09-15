@@ -140,12 +140,26 @@ export default function RecommendationsTable({ recommendations, type }: Recommen
                 <div className="max-w-md">
                   {type === 's3' && (
                     <div className="space-y-1">
-                      <div className="font-medium">
-                        {(rec as S3Recommendation).currentStorageClass} → {(rec as S3Recommendation).recommendedStorageClass}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {rec.aiGeneratedReport.split(':')[0]}
-                      </div>
+                      {(() => {
+                        const s3Rec = rec as S3Recommendation;
+                        const hasStorageClassChange = s3Rec.currentStorageClass && 
+                          s3Rec.recommendedStorageClass && 
+                          s3Rec.currentStorageClass !== s3Rec.recommendedStorageClass &&
+                          s3Rec.recommendedStorageClass !== 'DELETE';
+                        
+                        return (
+                          <>
+                            {hasStorageClassChange && (
+                              <div className="font-medium">
+                                {s3Rec.currentStorageClass} → {s3Rec.recommendedStorageClass}
+                              </div>
+                            )}
+                            <div className={hasStorageClassChange ? "text-sm text-muted-foreground" : "font-medium"}>
+                              {rec.aiGeneratedReport.split(':')[0] || rec.aiGeneratedReport.split('.')[0]}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
                   {(type === 'ec2' || type === 'ebs') && (
@@ -155,7 +169,7 @@ export default function RecommendationsTable({ recommendations, type }: Recommen
                         {type === 'ebs' && 'Remove unused volume'}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {rec.aiGeneratedReport.split(':')[0]}
+                        {rec.aiGeneratedReport.split(':')[0] || rec.aiGeneratedReport.split('.')[0]}
                       </div>
                     </div>
                   )}
@@ -223,17 +237,36 @@ export default function RecommendationsTable({ recommendations, type }: Recommen
                           </p>
                         </div>
                       </div>
-                      {type === 's3' && (
-                        <div>
-                          <h4 className="font-medium mb-1">Storage Transition</h4>
-                          <p className="text-sm">
-                            {(rec as S3Recommendation).currentStorageClass} → {(rec as S3Recommendation).recommendedStorageClass}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {(rec as S3Recommendation).objectCount.toLocaleString()} objects affected
-                          </p>
-                        </div>
-                      )}
+                      {type === 's3' && (() => {
+                        const s3Rec = rec as S3Recommendation;
+                        const hasStorageClassChange = s3Rec.currentStorageClass && 
+                          s3Rec.recommendedStorageClass && 
+                          s3Rec.currentStorageClass !== s3Rec.recommendedStorageClass &&
+                          s3Rec.recommendedStorageClass !== 'DELETE';
+                        
+                        return (
+                          <div>
+                            {hasStorageClassChange ? (
+                              <>
+                                <h4 className="font-medium mb-1">Storage Transition</h4>
+                                <p className="text-sm">
+                                  {s3Rec.currentStorageClass} → {s3Rec.recommendedStorageClass}
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <h4 className="font-medium mb-1">Recommendation Type</h4>
+                                <p className="text-sm">
+                                  {s3Rec.recommendedStorageClass === 'DELETE' ? 'Delete unused objects' : 'Optimize storage configuration'}
+                                </p>
+                              </>
+                            )}
+                            <p className="text-sm text-muted-foreground">
+                              {s3Rec.objectCount.toLocaleString()} objects affected
+                            </p>
+                          </div>
+                        );
+                      })()}
                       {type === 'ec2' && (
                         <div>
                           <h4 className="font-medium mb-1">Instance Details</h4>
